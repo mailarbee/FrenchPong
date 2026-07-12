@@ -146,6 +146,40 @@
     text-align:center;
   }
   #bgSection p{ font-size:.78rem; color:#5a4324; margin:4px 0 8px; line-height:1.5; }
+  #bgGallery{ justify-content:center; gap:8px; margin-bottom:8px; }
+  .bgThumb{
+    width:70px; height:38.5px;
+    border-radius:4px;
+    background-size:cover;
+    background-position:center;
+    border:2px solid #a98a4d;
+    cursor:pointer;
+    position:relative;
+    flex:0 0 auto;
+  }
+  .bgThumb.active{ border-color:var(--rouge); box-shadow:0 0 0 2px var(--gold-bright); }
+  .bgThumb.noneTile{
+    display:flex; align-items:center; justify-content:center;
+    font-size:.62rem; color:#5a4324; background:#e4d7b8;
+    border-style:dashed;
+  }
+  .bgAddTile{
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.3rem; color:#5a4324; background:#fffaf0;
+    border-style:dashed;
+  }
+  .bgThumbDel{
+    position:absolute; top:-7px; right:-7px;
+    width:18px; height:18px; padding:0; line-height:16px;
+    border-radius:50%; font-size:.7rem;
+    background:var(--rouge); color:#fff; border:1px solid #fff;
+  }
+  #twoPlayerFields{
+    border-top:1px dashed #a98a4d;
+    margin-top:10px;
+    padding-top:10px;
+  }
+  #twoPlayerFields .field{ min-width:150px; }
   #appRoot{
     display:flex;
     flex-direction:column;
@@ -216,10 +250,13 @@
 <div id="panel">
   <div class="row">
     <div class="field">
-      <label for="name">Nom du joueur</label>
-      <input id="name" placeholder="Votre nom" value="Rolf" maxlength="16">
+      <label for="mode">Mode de jeu</label>
+      <select id="mode" onchange="onModeChange()">
+        <option value="single" selected>1 joueur (contre l'IA)</option>
+        <option value="two">2 joueurs</option>
+      </select>
     </div>
-    <div class="field">
+    <div class="field" id="difficultyField">
       <label for="difficulty">Adversaire</label>
       <select id="difficulty">
         <option value="easy">Café du Coin</option>
@@ -228,6 +265,40 @@
       </select>
     </div>
   </div>
+
+  <div class="row" id="singleNameRow">
+    <div class="field">
+      <label for="name">Nom du joueur</label>
+      <input id="name" placeholder="Votre nom" value="Rolf" maxlength="16">
+    </div>
+  </div>
+
+  <div id="twoPlayerFields" class="hidden">
+    <div class="row">
+      <div class="field">
+        <label for="nameLeft">Nom — Gauche</label>
+        <input id="nameLeft" placeholder="Joueur gauche" value="Rolf" maxlength="16">
+      </div>
+      <div class="field">
+        <label for="inputLeft">Commande — Gauche</label>
+        <select id="inputLeft" onchange="this.dataset.chosen='1'"></select>
+      </div>
+    </div>
+    <div class="row">
+      <div class="field">
+        <label for="nameRight">Nom — Droit</label>
+        <input id="nameRight" placeholder="Joueur droit" value="Manou" maxlength="16">
+      </div>
+      <div class="field">
+        <label for="inputRight">Commande — Droit</label>
+        <select id="inputRight" onchange="this.dataset.chosen='1'"></select>
+      </div>
+    </div>
+    <p style="font-size:.75rem;color:#5a4324;text-align:center;margin:4px 0 0;">
+      Manette non détectée ? Appuyez sur un bouton dessus, puis rouvrez ce menu.
+    </p>
+  </div>
+
   <div class="row">
     <button onclick="startGame()">⚜ Commencer le match</button>
     <button class="secondary" onclick="toggleSound()" id="soundBtn">🔊 Son activé</button>
@@ -241,16 +312,17 @@
   <div id="iosHint" class="hidden">📲 Sur iPhone / iPad : appuyez sur Partager, puis « Sur l'écran d'accueil » pour installer le jeu.</div>
 
   <div id="bgSection">
-    <p>Fond d'écran personnalisé (facultatif) — remplace les décors de villes par votre image.</p>
+    <p>Fond d'écran (facultatif) — choisissez une image sauvegardée ou ajoutez-en une nouvelle.</p>
+    <div id="bgGallery" class="row"></div>
     <div class="row">
-      <input type="file" id="bgFile" accept="image/*">
-      <button class="ghost" onclick="clearCustomBg()">Réinitialiser le fond</button>
+      <input type="file" id="bgFile" accept="image/*" class="hidden">
       <button class="ghost" onclick="copyPromptTemplate()">📋 Copier un modèle pour IA</button>
     </div>
     <p id="bgStatus"></p>
   </div>
 
   <div id="highscores" style="margin-top:10px; font-size:.85rem; text-align:center;"></div>
+  <div id="duels" style="margin-top:10px; font-size:.85rem; text-align:center;"></div>
 </div>
 
 <div id="canvasWrap" class="hidden">
@@ -272,7 +344,12 @@ const ctx = canvas.getContext("2d");
 const W = canvas.width, H = canvas.height;
 
 let active = false, paused = false, sound = true;
-let player = "Joueur";
+let mode = "single"; // "single" | "two"
+let leftName = "Joueur", rightName = "Adversaire";
+let inputLeftSource = "keyboard-ws", inputRightSource = "keyboard-arrows";
+let touchTargetLeft = null, touchTargetRight = null;
+let connectedGamepads = [];
+let wakeLock = null;
 let diff = "medium";
 let paddleH = 100;
 const paddleW = 16;
@@ -289,17 +366,99 @@ let customBgImg = null;
 const cities = ["Paris","Lyon","Marseille","Nice","Bordeaux"];
 
 const scores = JSON.parse(localStorage.getItem("pong_fr_scores_v2") || "[]");
+const duels = JSON.parse(localStorage.getItem("pong_fr_duels") || "[]");
 renderHighscores();
+renderDuels();
 loadCustomBgFromStorage();
+populateInputSelects();
 
 function renderHighscores(){
   const box = document.getElementById("highscores");
-  if(!scores.length){ box.innerHTML = "<em>Aucun score encore inscrit au tableau.</em>"; return; }
-  box.innerHTML = "<strong>Tableau d'honneur</strong><br>" + scores.slice(0,5)
+  if(!scores.length){ box.innerHTML = "<em>Aucun score solo encore inscrit au tableau.</em>"; return; }
+  box.innerHTML = "<strong>Tableau d'honneur (solo)</strong><br>" + scores.slice(0,5)
     .map((s,i)=>`${i+1}. ${escapeHtml(s.name)} — ${s.score}`).join("<br>");
+}
+function renderDuels(){
+  const box = document.getElementById("duels");
+  if(!box) return;
+  if(!duels.length){ box.innerHTML = ""; return; }
+  box.innerHTML = "<strong>Duels récents</strong><br>" + duels.slice(0,5).map(d=>
+    `${escapeHtml(d.left)} ${d.leftScore} — ${d.rightScore} ${escapeHtml(d.right)} <em>(${escapeHtml(d.winner)})</em>`
+  ).join("<br>");
 }
 function escapeHtml(str){
   return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function onModeChange(){
+  const m = document.getElementById("mode").value;
+  mode = m;
+  document.getElementById("difficultyField").style.display = m==="single" ? "" : "none";
+  document.getElementById("singleNameRow").style.display = m==="single" ? "" : "none";
+  document.getElementById("twoPlayerFields").classList.toggle("hidden", m!=="two");
+  if(m==="two"){ refreshGamepadList(); populateInputSelects(); }
+}
+
+/* ---------- Manettes ---------- */
+function refreshGamepadList(){
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  connectedGamepads = [];
+  for(let i=0;i<pads.length;i++){
+    if(pads[i]) connectedGamepads.push({ index: pads[i].index, id: pads[i].id });
+  }
+}
+function shortenGamepadName(id){
+  return id.length > 26 ? id.slice(0,24) + "…" : id;
+}
+function populateInputSelects(){
+  refreshGamepadList();
+  const options = [
+    { value:"keyboard-ws", label:"Clavier (W / S)" },
+    { value:"keyboard-arrows", label:"Clavier (↑ / ↓)" },
+    { value:"touch", label:"Écran tactile" }
+  ];
+  connectedGamepads.forEach(gp=>{
+    options.push({ value:"gamepad-"+gp.index, label:"Manette : "+shortenGamepadName(gp.id) });
+  });
+  ["inputLeft","inputRight"].forEach(id=>{
+    const sel = document.getElementById(id);
+    if(!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = "";
+    options.forEach(o=>{
+      const opt = document.createElement("option");
+      opt.value = o.value; opt.textContent = o.label;
+      sel.appendChild(opt);
+    });
+    const stillValid = Array.from(sel.options).some(o=>o.value===prev);
+    if(stillValid) sel.value = prev;
+  });
+  const selLeft = document.getElementById("inputLeft");
+  const selRight = document.getElementById("inputRight");
+  if(selLeft && !selLeft.dataset.chosen) selLeft.value = "keyboard-ws";
+  if(selRight && !selRight.dataset.chosen){
+    selRight.value = connectedGamepads.length ? ("gamepad-"+connectedGamepads[0].index) : "keyboard-arrows";
+  }
+}
+window.addEventListener("gamepadconnected", ()=> populateInputSelects());
+window.addEventListener("gamepaddisconnected", ()=> populateInputSelects());
+
+/* ---------- Écran allumé & vibration ---------- */
+async function requestWakeLock(){
+  try{
+    if("wakeLock" in navigator){
+      wakeLock = await navigator.wakeLock.request("screen");
+    }
+  }catch(e){ /* refused or unsupported, ignore */ }
+}
+function releaseWakeLock(){
+  if(wakeLock){ wakeLock.release().catch(()=>{}); wakeLock = null; }
+}
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState === "visible" && active && !paused) requestWakeLock();
+});
+function vibrate(pattern){
+  try{ if(navigator.vibrate) navigator.vibrate(pattern); }catch(e){}
 }
 
 function frenchNumber(n){
@@ -330,6 +489,34 @@ function playAnthemMotif(){
   if(!sound) return;
   const notes = [523.25, 523.25, 622.25, 783.99, 622.25, 783.99, 987.77];
   notes.forEach((f,i)=> setTimeout(()=>beep(f, 0.16, "square", 0.06), i*140));
+}
+
+// A little musette-accordion flavored chord for scoring — two slightly detuned
+// sawtooth voices per note (the "beating" that gives an accordion its character)
+// plus a light vibrato, instead of a flat arcade beep.
+function playScoreStinger(scoredLeft){
+  if(!sound) return;
+  try{
+    const actx = beep._ctx || (beep._ctx = new (window.AudioContext||window.webkitAudioContext)());
+    const now = actx.currentTime;
+    const baseFreq = scoredLeft ? 587.33 : 493.88; // D5 for left, B4 for right — audible cue of who scored
+    const chord = [0, 4, 7];
+    chord.forEach(semi=>{
+      const freq = baseFreq * Math.pow(2, semi/12);
+      const o1 = actx.createOscillator(), o2 = actx.createOscillator();
+      const lfo = actx.createOscillator(), lfoGain = actx.createGain();
+      const g = actx.createGain();
+      o1.type = "sawtooth"; o2.type = "sawtooth";
+      o1.frequency.value = freq; o2.frequency.value = freq * 1.006;
+      lfo.frequency.value = 5.5; lfoGain.gain.value = 3;
+      lfo.connect(lfoGain); lfoGain.connect(o1.frequency);
+      g.gain.value = 0.045;
+      o1.connect(g); o2.connect(g); g.connect(actx.destination);
+      o1.start(now); o2.start(now); lfo.start(now);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+      o1.stop(now + 0.45); o2.stop(now + 0.45); lfo.stop(now + 0.45);
+    });
+  }catch(e){}
 }
 
 function toggleSound(){
@@ -365,16 +552,109 @@ function flashOrnament(){
   });
 }
 
-/* ---------- Fond d'écran personnalisé ---------- */
-function loadCustomBgFromStorage(){
-  const data = localStorage.getItem("pong_fr_custom_bg");
-  if(data){
-    const img = new Image();
-    img.onload = ()=>{ customBgImg = img; };
-    img.src = data;
-    document.getElementById("bgStatus").textContent = "Un fond personnalisé est enregistré.";
+/* ---------- Fond d'écran : galerie ---------- */
+const MAX_BG = 4;
+
+function migrateOldBg(){
+  const old = localStorage.getItem("pong_fr_custom_bg");
+  const galleryRaw = localStorage.getItem("pong_fr_bg_gallery");
+  if(old && !galleryRaw){
+    try{
+      localStorage.setItem("pong_fr_bg_gallery", JSON.stringify([old]));
+      localStorage.setItem("pong_fr_bg_active", "0");
+    }catch(e){}
+    localStorage.removeItem("pong_fr_custom_bg");
   }
 }
+migrateOldBg();
+
+function getGallery(){
+  try{ return JSON.parse(localStorage.getItem("pong_fr_bg_gallery") || "[]"); }catch(e){ return []; }
+}
+function getActiveIndex(){
+  const v = localStorage.getItem("pong_fr_bg_active");
+  return v === null ? -1 : parseInt(v, 10);
+}
+
+function loadCustomBgFromStorage(){
+  const gallery = getGallery();
+  const idx = getActiveIndex();
+  if(idx >= 0 && gallery[idx]){
+    const img = new Image();
+    img.onload = ()=>{ customBgImg = img; };
+    img.src = gallery[idx];
+  }
+  renderGallery();
+}
+
+function renderGallery(){
+  const gallery = getGallery();
+  const activeIdx = getActiveIndex();
+  const box = document.getElementById("bgGallery");
+  if(!box) return;
+  box.innerHTML = "";
+
+  const noneTile = document.createElement("div");
+  noneTile.className = "bgThumb noneTile" + (activeIdx === -1 ? " active" : "");
+  noneTile.textContent = "Villes";
+  noneTile.title = "Décors de villes (par défaut)";
+  noneTile.onclick = ()=> selectGalleryImage(-1);
+  box.appendChild(noneTile);
+
+  gallery.forEach((dataUrl, i)=>{
+    const thumb = document.createElement("div");
+    thumb.className = "bgThumb" + (i === activeIdx ? " active" : "");
+    thumb.style.backgroundImage = `url(${dataUrl})`;
+    thumb.onclick = ()=> selectGalleryImage(i);
+    const del = document.createElement("button");
+    del.type = "button";
+    del.textContent = "×";
+    del.className = "bgThumbDel";
+    del.title = "Supprimer";
+    del.onclick = (e)=>{ e.stopPropagation(); deleteGalleryImage(i); };
+    thumb.appendChild(del);
+    box.appendChild(thumb);
+  });
+
+  if(gallery.length < MAX_BG){
+    const addTile = document.createElement("div");
+    addTile.className = "bgThumb bgAddTile";
+    addTile.textContent = "+";
+    addTile.title = "Ajouter une image";
+    addTile.onclick = ()=> document.getElementById("bgFile").click();
+    box.appendChild(addTile);
+  }
+}
+
+function selectGalleryImage(i){
+  const gallery = getGallery();
+  if(i === -1){
+    customBgImg = null;
+    localStorage.setItem("pong_fr_bg_active", "-1");
+    document.getElementById("bgStatus").textContent = "Décors de villes activés.";
+  } else if(gallery[i]){
+    const img = new Image();
+    img.onload = ()=>{ customBgImg = img; };
+    img.src = gallery[i];
+    localStorage.setItem("pong_fr_bg_active", String(i));
+    document.getElementById("bgStatus").textContent = "Fond personnalisé sélectionné.";
+  }
+  renderGallery();
+}
+
+function deleteGalleryImage(i){
+  const gallery = getGallery();
+  const activeIdx = getActiveIndex();
+  gallery.splice(i, 1);
+  try{ localStorage.setItem("pong_fr_bg_gallery", JSON.stringify(gallery)); }catch(e){}
+  let newActive = activeIdx;
+  if(activeIdx === i){ newActive = -1; customBgImg = null; }
+  else if(activeIdx > i){ newActive = activeIdx - 1; }
+  localStorage.setItem("pong_fr_bg_active", String(newActive));
+  document.getElementById("bgStatus").textContent = "Image supprimée.";
+  renderGallery();
+}
+
 document.getElementById("bgFile").addEventListener("change", function(e){
   const file = e.target.files[0];
   if(!file) return;
@@ -390,27 +670,34 @@ document.getElementById("bgFile").addEventListener("change", function(e){
       if(imgRatio > canvasRatio){ sh=img.height; sw=sh*canvasRatio; sx=(img.width-sw)/2; sy=0; }
       else { sw=img.width; sh=sw/canvasRatio; sx=0; sy=(img.height-sh)/2; }
       octx.drawImage(img, sx,sy,sw,sh, 0,0,W,H);
-      const dataUrl = off.toDataURL("image/jpeg", 0.85);
+      const dataUrl = off.toDataURL("image/jpeg", 0.82);
+
+      const gallery = getGallery();
+      if(gallery.length >= MAX_BG){
+        document.getElementById("bgStatus").textContent = `Maximum ${MAX_BG} images enregistrées — supprimez-en une avant d'en ajouter une nouvelle.`;
+        return;
+      }
+      gallery.push(dataUrl);
       try{
-        localStorage.setItem("pong_fr_custom_bg", dataUrl);
-        document.getElementById("bgStatus").textContent = "Fond personnalisé enregistré.";
+        localStorage.setItem("pong_fr_bg_gallery", JSON.stringify(gallery));
+        localStorage.setItem("pong_fr_bg_active", String(gallery.length - 1));
+        document.getElementById("bgStatus").textContent = "Image ajoutée et sélectionnée.";
       }catch(err){
-        document.getElementById("bgStatus").textContent = "Image trop volumineuse pour être enregistrée, mais utilisée pour cette partie.";
+        gallery.pop();
+        document.getElementById("bgStatus").textContent = "Espace de stockage insuffisant pour enregistrer cette image.";
+        return;
       }
       const finalImg = new Image();
       finalImg.onload = ()=>{ customBgImg = finalImg; };
       finalImg.src = dataUrl;
+      renderGallery();
     };
     img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
+  e.target.value = "";
 });
-function clearCustomBg(){
-  customBgImg = null;
-  localStorage.removeItem("pong_fr_custom_bg");
-  document.getElementById("bgStatus").textContent = "Fond réinitialisé aux décors de villes.";
-  document.getElementById("bgFile").value = "";
-}
+
 function copyPromptTemplate(){
   const prompt = "Image de fond pour un jeu de Pong à thème français, style Belle Époque.\n"
     + "Format : 1000×550 pixels, paysage, ratio 20:11.\n"
@@ -428,13 +715,24 @@ function copyPromptTemplate(){
 }
 function prompt_fallback(text){ window.prompt("Copiez ce modèle :", text); }
 
+
 /* ---------- Partie ---------- */
 function startGame(){
-  player = document.getElementById("name").value.trim() || "Joueur";
+  mode = document.getElementById("mode").value;
   diff = document.getElementById("difficulty").value;
   paddleH = 100;
   revolutionMode = false;
   document.body.style.background = "";
+
+  if(mode === "single"){
+    leftName = document.getElementById("name").value.trim() || "Joueur";
+    rightName = "";
+  } else {
+    leftName = document.getElementById("nameLeft").value.trim() || "Gauche";
+    rightName = document.getElementById("nameRight").value.trim() || "Droit";
+    inputLeftSource = document.getElementById("inputLeft").value;
+    inputRightSource = document.getElementById("inputRight").value;
+  }
 
   const egg = pendingEgg;
   pendingEgg = null;
@@ -444,6 +742,7 @@ function startGame(){
 
   pScore = 0; aScore = 0; cityIndex = 0;
   pY = H/2 - paddleH/2; aY = H/2 - paddleH/2;
+  touchTargetLeft = null; touchTargetRight = null;
   resetBall();
   if(egg === "PETITNOIR"){ ball.dx *= 1.6; ball.dy *= 1.6; }
 
@@ -452,6 +751,7 @@ function startGame(){
   document.getElementById("panel").classList.add("hidden");
   active = true; paused = false;
   applyFullscreenLayout();
+  requestWakeLock();
   requestAnimationFrame(loop);
 }
 
@@ -463,10 +763,12 @@ function showMotto(){
 
 function backToMenu(){
   active = false; paused = false;
+  releaseWakeLock();
   document.getElementById("canvasWrap").classList.add("hidden");
   document.getElementById("hint").classList.add("hidden");
   document.getElementById("panel").classList.remove("hidden");
   renderHighscores();
+  renderDuels();
   applyFullscreenLayout();
 }
 
@@ -475,7 +777,9 @@ function togglePause(){
   paused = !paused;
   if(paused){
     drawPauseOverlay();
+    releaseWakeLock();
   } else {
+    requestWakeLock();
     requestAnimationFrame(loop);
   }
 }
@@ -589,6 +893,7 @@ function paddleBounce(paddleY, towardsRight){
   ball.dy = speed * Math.sin(angle) + (Math.random()-0.5)*0.6;
   spawnParticles(ball.x, ball.y);
   beep(towardsRight ? 300 : 260, 0.05);
+  vibrate(12);
 }
 
 function spawnParticles(x,y){
@@ -700,18 +1005,31 @@ function drawScoreboard(){
   ctx.fillText(`${frenchNumber(pScore)}  —  ${frenchNumber(aScore)}`, W/2, 40);
 
   ctx.font = "13px 'EB Garamond', serif";
-  ctx.fillText(customBgImg ? "Fond personnalisé" : cities[cityIndex], W/2, 66);
+  ctx.fillText(mode === "two" ? "Duel" : (customBgImg ? "Fond personnalisé" : cities[cityIndex]), W/2, 66);
   ctx.textAlign = "left";
 }
 
-function endMatch(won){
+function endMatch(pWon){
   active = false;
-  scores.push({name: player, score: pScore});
-  scores.sort((a,b)=>b.score-a.score);
-  scores.splice(8);
-  localStorage.setItem("pong_fr_scores_v2", JSON.stringify(scores));
+  releaseWakeLock();
 
-  if(won) { spawnConfetti(); playAnthemMotif(); }
+  if(mode === "single"){
+    scores.push({name: leftName, score: pScore});
+    scores.sort((a,b)=>b.score-a.score);
+    scores.splice(8);
+    try{ localStorage.setItem("pong_fr_scores_v2", JSON.stringify(scores)); }catch(e){}
+  } else {
+    duels.unshift({ left:leftName, right:rightName, leftScore:pScore, rightScore:aScore, winner: pWon ? leftName : rightName });
+    duels.splice(8);
+    try{ localStorage.setItem("pong_fr_duels", JSON.stringify(duels)); }catch(e){}
+  }
+
+  if(pWon){ spawnConfetti(); playAnthemMotif(); vibrate([40,60,40,60,120]); }
+  else { vibrate(220); }
+
+  const winnerName = pWon ? leftName : rightName;
+  const titleText = mode === "single" ? (pWon ? "Victoire !" : "Défaite !") : `${winnerName} gagne !`;
+  const scoreText = mode === "single" ? `${leftName} — ${pScore} à ${aScore}` : `${leftName} ${pScore} — ${aScore} ${rightName}`;
 
   const drawEnd = () => {
     drawBackground(); drawParticles(); updateConfetti(); drawConfetti();
@@ -720,12 +1038,12 @@ function endMatch(won){
     ctx.strokeStyle = "#c8a355"; ctx.lineWidth = 3;
     ctx.strokeRect(W/2-260, H/2-110, 520, 220);
     ctx.textAlign = "center";
-    ctx.fillStyle = won ? "#e8c874" : "#d68a90";
-    ctx.font = "48px 'Playfair Display', serif";
-    ctx.fillText(won ? "Victoire !" : "Défaite !", W/2, H/2-20);
+    ctx.fillStyle = (mode === "single" && !pWon) ? "#d68a90" : "#e8c874";
+    ctx.font = "44px 'Playfair Display', serif";
+    ctx.fillText(titleText, W/2, H/2-20);
     ctx.font = "18px 'EB Garamond', serif";
     ctx.fillStyle = "#f2ead9";
-    ctx.fillText(`${player} — ${pScore} à ${aScore}`, W/2, H/2+20);
+    ctx.fillText(scoreText, W/2, H/2+20);
     ctx.font = "14px 'EB Garamond', serif";
     ctx.fillText("Appuyez sur Menu pour rejouer", W/2, H/2+55);
     ctx.textAlign = "left";
@@ -737,9 +1055,26 @@ function endMatch(won){
 function loop(){
   if(!active || paused) return;
 
-  if(keys["ArrowUp"] || keys["w"] || keys["W"]) pY -= 8;
-  if(keys["ArrowDown"] || keys["s"] || keys["S"]) pY += 8;
-  pY = Math.max(0, Math.min(H - paddleH, pY));
+  if(mode === "single"){
+    if(keys["ArrowUp"] || keys["w"] || keys["W"]) pY -= 8;
+    if(keys["ArrowDown"] || keys["s"] || keys["S"]) pY += 8;
+    if(touchTargetLeft !== null) pY += (touchTargetLeft - pY) * 0.35;
+    pY = clampY(pY);
+  } else {
+    if(inputLeftSource === "touch"){
+      if(touchTargetLeft !== null) pY += (touchTargetLeft - pY) * 0.35;
+    } else {
+      pY += getPaddleDelta(inputLeftSource);
+    }
+    pY = clampY(pY);
+
+    if(inputRightSource === "touch"){
+      if(touchTargetRight !== null) aY += (touchTargetRight - aY) * 0.35;
+    } else {
+      aY += getPaddleDelta(inputRightSource);
+    }
+    aY = clampY(aY);
+  }
 
   ball.x += ball.dx; ball.y += ball.dy;
 
@@ -756,10 +1091,10 @@ function loop(){
   }
   clampSpeed();
 
-  updateAI();
+  if(mode === "single") updateAI();
 
-  if(ball.x < 0){ aScore++; beep(180,0.15); resetBall("ai"); }
-  if(ball.x > W){ pScore++; beep(660,0.15); resetBall("player"); }
+  if(ball.x < 0){ aScore++; playScoreStinger(false); vibrate([25,35,25]); resetBall("ai"); }
+  if(ball.x > W){ pScore++; playScoreStinger(true); vibrate([25,35,25]); resetBall("player"); }
 
   cityIndex = Math.floor((pScore+aScore)/5) % cities.length;
 
@@ -784,7 +1119,12 @@ function loop(){
 
   ctx.font = "16px 'EB Garamond', serif";
   ctx.fillStyle = "#e8c874";
-  ctx.fillText(player, paddleW+2, pY-10 < 20 ? pY+paddleH+22 : pY-10);
+  ctx.fillText(leftName, paddleW+2, pY-10 < 20 ? pY+paddleH+22 : pY-10);
+  if(mode === "two"){
+    ctx.textAlign = "right";
+    ctx.fillText(rightName, W-paddleW-2, aY-10 < 20 ? aY+paddleH+22 : aY-10);
+    ctx.textAlign = "left";
+  }
 
   drawScoreboard();
 
@@ -795,6 +1135,38 @@ function loop(){
   }
 
   requestAnimationFrame(loop);
+}
+
+function clampY(v){
+  return Math.max(0, Math.min(H - paddleH, v));
+}
+
+function getPaddleDelta(source){
+  if(source === "keyboard-ws"){
+    let d = 0;
+    if(keys["w"] || keys["W"]) d -= 8;
+    if(keys["s"] || keys["S"]) d += 8;
+    return d;
+  }
+  if(source === "keyboard-arrows"){
+    let d = 0;
+    if(keys["ArrowUp"]) d -= 8;
+    if(keys["ArrowDown"]) d += 8;
+    return d;
+  }
+  if(source && source.indexOf("gamepad-") === 0){
+    const idx = parseInt(source.split("-")[1], 10);
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    const gp = pads[idx];
+    if(!gp) return 0;
+    let axis = gp.axes[1] || 0;
+    if(Math.abs(axis) < 0.18) axis = 0;
+    let d = axis * 11;
+    if(gp.buttons[12] && gp.buttons[12].pressed) d -= 9;
+    if(gp.buttons[13] && gp.buttons[13].pressed) d += 9;
+    return d;
+  }
+  return 0;
 }
 
 function roundRect(x,y,w,h,r){
@@ -820,19 +1192,30 @@ window.addEventListener("keydown", e=>{
   }
 });
 
-function pointerY(clientY){
+function pointerXY(clientX, clientY){
   const r = canvas.getBoundingClientRect();
-  const scale = H / r.height;
-  return (clientY - r.top) * scale;
+  return {
+    x: (clientX - r.left) * (W / r.width),
+    y: (clientY - r.top) * (H / r.height)
+  };
 }
 canvas.addEventListener("mousemove", e=>{
-  pY = pointerY(e.clientY) - paddleH/2;
-  pY = Math.max(0, Math.min(H-paddleH, pY));
+  if(mode !== "single") return;
+  const {y} = pointerXY(e.clientX, e.clientY);
+  pY = clampY(y - paddleH/2);
 });
 canvas.addEventListener("touchmove", e=>{
   e.preventDefault();
-  pY = pointerY(e.touches[0].clientY) - paddleH/2;
-  pY = Math.max(0, Math.min(H-paddleH, pY));
+  for(const t of e.touches){
+    const {x,y} = pointerXY(t.clientX, t.clientY);
+    const target = clampY(y - paddleH/2);
+    if(mode === "single"){
+      touchTargetLeft = target;
+    } else {
+      if(x < W/2 && inputLeftSource === "touch") touchTargetLeft = target;
+      if(x >= W/2 && inputRightSource === "touch") touchTargetRight = target;
+    }
+  }
 }, {passive:false});
 
 /* ---------- PWA : installation & service worker ---------- */
