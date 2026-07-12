@@ -1,4 +1,4 @@
-const CACHE = "pong-fr-belle-epoque-v3";
+const CACHE = "pong-fr-belle-epoque-v5";
 const ASSETS = [
   "./",
   "./index.html",
@@ -10,7 +10,13 @@ const ASSETS = [
   "./fonts/playfair-display-900.woff2",
   "./fonts/eb-garamond-400.woff2",
   "./fonts/eb-garamond-600.woff2",
-  "./fonts/eb-garamond-400-italic.woff2"
+  "./fonts/eb-garamond-400-italic.woff2",
+  "./monuments/moulin-rouge.jpg",
+  "./monuments/sacre-coeur.jpg",
+  "./monuments/cathedrale-reims.jpg",
+  "./monuments/negresco.jpg",
+  "./monuments/tour-eiffel.jpg",
+  "./monuments/napoleon.jpg"
 ];
 
 self.addEventListener("install", e => {
