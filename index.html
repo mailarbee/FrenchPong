@@ -72,16 +72,26 @@
     text-shadow:0 0 10px var(--gold-bright), 0 0 20px var(--gold-bright);
   }
   #panel{
+    position:relative;
     background:linear-gradient(180deg, var(--parchment) 0%, var(--parchment-dark) 100%);
     color:var(--ink);
     border:2px solid var(--gold);
     outline:1px solid rgba(200,163,85,.4);
     outline-offset:4px;
     border-radius:6px;
-    padding:16px 20px;
+    padding:16px 20px 26px;
     max-width:640px;
     width:100%;
     box-shadow:0 12px 30px rgba(0,0,0,.45);
+  }
+  #versionTag{
+    position:absolute;
+    bottom:6px;
+    right:12px;
+    font-size:.68rem;
+    color:#5a4324;
+    opacity:.55;
+    font-family:'EB Garamond', Georgia, serif;
   }
   #panel .row{
     display:flex;
@@ -180,6 +190,71 @@
     padding-top:10px;
   }
   #twoPlayerFields .field{ min-width:150px; }
+
+  #monumentSection{
+    border-top:1px dashed #a98a4d;
+    margin-top:12px;
+    padding-top:10px;
+    text-align:center;
+  }
+  #monumentModal{
+    position:fixed; inset:0;
+    background:rgba(4,10,20,.85);
+    z-index:50;
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  #monumentModalBox{
+    position:relative;
+    background:linear-gradient(180deg, var(--parchment) 0%, var(--parchment-dark) 100%);
+    color:var(--ink);
+    border:2px solid var(--gold);
+    border-radius:8px;
+    padding:20px;
+    max-width:320px;
+    width:100%;
+    max-height:88vh;
+    overflow-y:auto;
+    text-align:center;
+    box-shadow:0 20px 50px rgba(0,0,0,.6);
+  }
+  #monumentModalClose{
+    position:absolute; top:8px; right:10px;
+    background:transparent; border:none;
+    color:#5a4324; font-size:1.4rem; line-height:1;
+    cursor:pointer; padding:4px 8px;
+  }
+  #monumentDisplay{
+    position:relative;
+    width:100%;
+    max-width:240px;
+    aspect-ratio:2/3;
+    margin:6px auto 0;
+    border-radius:6px;
+    overflow:hidden;
+    border:2px solid var(--gold);
+    background:#0e1b3a;
+  }
+  #monumentDisplay img{
+    position:absolute; top:0; left:0;
+    width:100%; height:100%;
+    object-fit:cover;
+  }
+  #monumentImgDim{ filter:grayscale(100%) brightness(.4); opacity:.5; }
+  #monumentImgVivid{ clip-path: inset(100% 0 0 0); transition: clip-path 1.2s ease; }
+  .monTrackItem{
+    width:24px;height:24px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-size:.65rem; border:1px solid #a98a4d; background:#fffaf0; color:#5a4324;
+  }
+  .monTrackItem.done{ background:var(--gold); color:#241a10; border-color:var(--gold-bright); }
+  .monTrackItem.current{ box-shadow:0 0 0 2px var(--rouge); }
+  #newProfileRow{ align-items:center; }
+  label.checkboxLabel{
+    display:flex; align-items:center; gap:6px;
+    font-size:.82rem; text-transform:none; letter-spacing:0;
+    color:#5a4324;
+  }
   #appRoot{
     display:flex;
     flex-direction:column;
@@ -268,9 +343,23 @@
 
   <div class="row" id="singleNameRow">
     <div class="field">
-      <label for="name">Nom du joueur</label>
-      <input id="name" placeholder="Votre nom" value="Rolf" maxlength="16">
+      <label for="profileSelect">Profil (Nom du joueur)</label>
+      <select id="profileSelect" onchange="onProfileSelectChange()"></select>
     </div>
+  </div>
+  <div class="row hidden" id="newProfileRow">
+    <div class="field">
+      <label for="newProfileName">Nouveau nom</label>
+      <input id="newProfileName" placeholder="Votre nom" maxlength="16">
+    </div>
+    <button class="ghost" onclick="createProfile()">Créer le profil</button>
+  </div>
+  <p id="newProfileStatus" style="font-size:.75rem;color:var(--rouge);text-align:center;margin:2px 0 0;"></p>
+  <div class="row" id="riskModeRow">
+    <label class="checkboxLabel" for="riskMode">
+      <input type="checkbox" id="riskMode">
+      Mode Risque — une défaite retire des points au monument en construction
+    </label>
   </div>
 
   <div id="twoPlayerFields" class="hidden">
@@ -321,8 +410,27 @@
     <p id="bgStatus"></p>
   </div>
 
+  <div id="monumentSection" class="hidden row" style="justify-content:center;">
+    <button class="ghost" onclick="openMonumentModal()">🏛️ Voir mon monument</button>
+  </div>
+
   <div id="highscores" style="margin-top:10px; font-size:.85rem; text-align:center;"></div>
   <div id="duels" style="margin-top:10px; font-size:.85rem; text-align:center;"></div>
+  <div id="versionTag">v1.2.0</div>
+</div>
+
+<div id="monumentModal" class="hidden">
+  <div id="monumentModalBox">
+    <button id="monumentModalClose" onclick="closeMonumentModal()" aria-label="Fermer">×</button>
+    <p style="font-size:.85rem;color:#5a4324;margin:4px 0 8px;">🏛️ Monument en construction — <strong id="monumentProfileLabel"></strong></p>
+    <div id="monumentDisplay">
+      <img id="monumentImgDim" src="" alt="">
+      <img id="monumentImgVivid" src="" alt="">
+    </div>
+    <p id="monumentProgressText" style="font-size:.8rem;color:#5a4324;margin-top:6px;"></p>
+    <div id="monumentTrack" class="row" style="justify-content:center;gap:6px;margin-top:6px;"></div>
+    <p id="monumentWarning" class="hidden" style="font-size:.72rem;color:var(--rouge);margin-top:8px;"></p>
+  </div>
 </div>
 
 <div id="canvasWrap" class="hidden">
@@ -343,6 +451,11 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const W = canvas.width, H = canvas.height;
 const MAX_BG = 4;
+const GAME_VERSION = "1.3.1";
+{
+  const vt = document.getElementById("versionTag");
+  if(vt) vt.textContent = "v" + GAME_VERSION;
+}
 
 let active = false, paused = false, sound = true;
 let mode = "single"; // "single" | "two"
@@ -362,16 +475,188 @@ const BASE_SPEED = 7, MAX_SPEED = 15;
 let particles = [];
 let confetti = [];
 let revolutionMode = false;
+let riskMode = false;
 let customBgImg = null;
 
 const cities = ["Paris","Lyon","Marseille","Nice","Bordeaux"];
 
-const scores = JSON.parse(localStorage.getItem("pong_fr_scores_v2") || "[]");
+/* ---------- Monument : construction progressive ---------- */
+// threshold = cumulative build points needed to fully complete this monument.
+const MONUMENTS = [
+  { id:"moulin-rouge",      name:"Le Moulin Rouge",                 img:"monuments/moulin-rouge.jpg",      threshold:150  },
+  { id:"sacre-coeur",       name:"La Basilique du Sacré-Cœur",       img:"monuments/sacre-coeur.jpg",       threshold:400  },
+  { id:"cathedrale-reims",  name:"La Cathédrale de Reims",           img:"monuments/cathedrale-reims.jpg",  threshold:750  },
+  { id:"negresco",          name:"L'Hôtel Négresco",                 img:"monuments/negresco.jpg",          threshold:1200 },
+  { id:"tour-eiffel",       name:"La Tour Eiffel",                   img:"monuments/tour-eiffel.jpg",       threshold:1800 },
+  { id:"napoleon",          name:"Napoléon",                         img:"monuments/napoleon.jpg",          threshold:2500, isFinale:true }
+];
+const monumentImageCache = {};
+MONUMENTS.forEach(m=>{
+  const img = new Image();
+  img.src = m.img;
+  monumentImageCache[m.id] = img;
+});
+
+const NAPOLEON_SPEECHES = [
+  "La victoire appartient au plus persévérant. Le génie n'est que la patience et la volonté inflexible de conquérir le destin. La République ne se bâtit pas sur le doute, mais sur la grandeur d'un peuple uni. Celui qui craint de perdre son chemin ne conquerra jamais le monde ; celui qui porte en lui l'âme de la Nation est déjà immortel.",
+  "Que les nuages se dissipent, que les tambours se taisent — la France a vaincu par la seule force de sa volonté. Ce monument n'est pas de pierre, il est de gloire. Vive la République, vive la Nation, vive la France !",
+  "L'histoire ne se souvient pas des hésitants. Elle se souvient de ceux qui ont bâti, pierre par pierre, l'édifice de leur destin. Aujourd'hui, ce destin porte un nom : le vôtre."
+];
+let finaleSpeech = "";
+let finaleStartTime = 0;
+
+function getProfiles(){
+  try{ return JSON.parse(localStorage.getItem("pong_fr_profiles") || "{}"); }catch(e){ return {}; }
+}
+function saveProfiles(p){
+  try{ localStorage.setItem("pong_fr_profiles", JSON.stringify(p)); }catch(e){}
+}
+function getActiveProfile(){
+  return localStorage.getItem("pong_fr_active_profile") || null;
+}
+function setActiveProfile(name){
+  localStorage.setItem("pong_fr_active_profile", name);
+}
+
+function renderProfileSelect(){
+  const profiles = getProfiles();
+  const sel = document.getElementById("profileSelect");
+  if(!sel) return;
+  const active = getActiveProfile();
+  sel.innerHTML = "";
+  Object.keys(profiles).sort((a,b)=>a.localeCompare(b)).forEach(name=>{
+    const opt = document.createElement("option");
+    opt.value = name; opt.textContent = name;
+    sel.appendChild(opt);
+  });
+  const newOpt = document.createElement("option");
+  newOpt.value = "__new__"; newOpt.textContent = "+ Nouveau profil…";
+  sel.appendChild(newOpt);
+
+  if(active && profiles[active] !== undefined){
+    sel.value = active;
+  } else if(Object.keys(profiles).length){
+    const first = Object.keys(profiles).sort((a,b)=>a.localeCompare(b))[0];
+    sel.value = first;
+    setActiveProfile(first);
+  } else {
+    sel.value = "__new__";
+  }
+  onProfileSelectChange();
+}
+
+function onProfileSelectChange(){
+  const sel = document.getElementById("profileSelect");
+  const newRow = document.getElementById("newProfileRow");
+  if(!sel) return;
+  if(sel.value === "__new__"){
+    newRow.classList.remove("hidden");
+    document.getElementById("monumentSection").classList.add("hidden");
+  } else {
+    newRow.classList.add("hidden");
+    setActiveProfile(sel.value);
+    renderMonument();
+  }
+}
+
+function createProfile(){
+  const input = document.getElementById("newProfileName");
+  const name = input.value.trim();
+  const statusEl = document.getElementById("newProfileStatus");
+  if(!name){ statusEl.textContent = "Entrez un nom."; return; }
+  const profiles = getProfiles();
+  const exists = Object.keys(profiles).some(n => n.toLowerCase() === name.toLowerCase());
+  if(exists){
+    statusEl.textContent = "Ce nom existe déjà sur cet appareil — choisissez-le dans la liste.";
+    return;
+  }
+  profiles[name] = { buildPoints: 0 };
+  saveProfiles(profiles);
+  setActiveProfile(name);
+  input.value = "";
+  statusEl.textContent = "";
+  renderProfileSelect();
+}
+
+function getCurrentMonumentIndex(points){
+  for(let i=0;i<MONUMENTS.length;i++){
+    if(points < MONUMENTS[i].threshold) return i;
+  }
+  return MONUMENTS.length - 1;
+}
+
+function renderMonument(){
+  const section = document.getElementById("monumentSection");
+  if(!section) return;
+  const name = getActiveProfile();
+  const profiles = getProfiles();
+  if(!name || profiles[name] === undefined){
+    section.classList.add("hidden");
+    return;
+  }
+  section.classList.remove("hidden");
+
+  const points = profiles[name].buildPoints || 0;
+  const idx = getCurrentMonumentIndex(points);
+  const mon = MONUMENTS[idx];
+  const prevThreshold = idx === 0 ? 0 : MONUMENTS[idx-1].threshold;
+  const span = mon.threshold - prevThreshold;
+  const into = Math.max(0, points - prevThreshold);
+  const progress = Math.min(1, into / span);
+  const allDone = points >= MONUMENTS[MONUMENTS.length-1].threshold;
+
+  document.getElementById("monumentProfileLabel").textContent = name;
+  const imgDim = document.getElementById("monumentImgDim");
+  const imgVivid = document.getElementById("monumentImgVivid");
+  imgDim.src = mon.img;
+  imgVivid.src = mon.img;
+  imgVivid.style.clipPath = `inset(${(1-progress)*100}% 0 0 0)`;
+
+  const warning = document.getElementById("monumentWarning");
+  imgDim.onerror = ()=>{
+    warning.textContent = "Image introuvable — vérifiez que le dossier monuments/ se trouve bien à côté d'index.html.";
+    warning.classList.remove("hidden");
+  };
+  imgDim.onload = ()=>{ warning.classList.add("hidden"); };
+
+  document.getElementById("monumentProgressText").textContent = allDone
+    ? `${mon.name} — achevé ! (${points} points au total)`
+    : `${mon.name} — ${into} / ${span} points (${points} au total)`;
+
+  const track = document.getElementById("monumentTrack");
+  track.innerHTML = "";
+  MONUMENTS.forEach((m,i)=>{
+    const done = points >= m.threshold;
+    const isCurrent = i === idx && !done;
+    const dot = document.createElement("div");
+    dot.className = "monTrackItem" + (done ? " done" : "") + (isCurrent ? " current" : "");
+    dot.title = m.name;
+    dot.textContent = done ? "✓" : String(i+1);
+    track.appendChild(dot);
+  });
+}
+
+function openMonumentModal(){
+  renderMonument();
+  document.getElementById("monumentModal").classList.remove("hidden");
+}
+function closeMonumentModal(){
+  document.getElementById("monumentModal").classList.add("hidden");
+}
+
+const scoresRaw = JSON.parse(localStorage.getItem("pong_fr_scores_v2") || "[]");
+// Older records (from before opponent score / outcome were tracked) can't be
+// backfilled with real data, so we drop them rather than show a permanent "?".
+const scores = scoresRaw.filter(s => s.opponentScore !== undefined);
+if(scores.length !== scoresRaw.length){
+  try{ localStorage.setItem("pong_fr_scores_v2", JSON.stringify(scores)); }catch(e){}
+}
 const duels = JSON.parse(localStorage.getItem("pong_fr_duels") || "[]");
 renderHighscores();
 renderDuels();
 loadCustomBgFromStorage();
 populateInputSelects();
+renderProfileSelect();
 
 function renderHighscores(){
   const box = document.getElementById("highscores");
@@ -402,8 +687,15 @@ function onModeChange(){
   mode = m;
   document.getElementById("difficultyField").style.display = m==="single" ? "" : "none";
   document.getElementById("singleNameRow").style.display = m==="single" ? "" : "none";
+  document.getElementById("riskModeRow").style.display = m==="single" ? "" : "none";
   document.getElementById("twoPlayerFields").classList.toggle("hidden", m!=="two");
-  if(m==="two"){ refreshGamepadList(); populateInputSelects(); }
+  if(m==="two"){
+    refreshGamepadList(); populateInputSelects();
+    document.getElementById("newProfileRow").classList.add("hidden");
+    document.getElementById("monumentSection").classList.add("hidden");
+  } else {
+    renderMonument();
+  }
 }
 
 /* ---------- Manettes ---------- */
@@ -725,14 +1017,20 @@ function prompt_fallback(text){ window.prompt("Copiez ce modèle :", text); }
 /* ---------- Partie ---------- */
 function startGame(){
   mode = document.getElementById("mode").value;
+  if(mode === "single" && (!getActiveProfile() || document.getElementById("profileSelect").value === "__new__")){
+    document.getElementById("newProfileStatus").textContent = "Choisissez ou créez d'abord un profil.";
+    document.getElementById("newProfileRow").classList.remove("hidden");
+    return;
+  }
   diff = document.getElementById("difficulty").value;
   paddleH = 100;
   revolutionMode = false;
   document.body.style.background = "";
 
   if(mode === "single"){
-    leftName = document.getElementById("name").value.trim() || "Joueur";
+    leftName = getActiveProfile() || "Joueur";
     rightName = "";
+    riskMode = document.getElementById("riskMode").checked;
   } else {
     leftName = document.getElementById("nameLeft").value.trim() || "Gauche";
     rightName = document.getElementById("nameRight").value.trim() || "Droit";
@@ -775,6 +1073,7 @@ function backToMenu(){
   document.getElementById("panel").classList.remove("hidden");
   renderHighscores();
   renderDuels();
+  renderMonument();
   applyFullscreenLayout();
 }
 
@@ -1018,6 +1317,7 @@ function drawScoreboard(){
 function endMatch(pWon){
   active = false;
   releaseWakeLock();
+  let finaleTriggered = false;
 
   if(mode === "single"){
     const diffLabels = { easy:"Café du Coin", medium:"Citoyen", hard:"Napoléon" };
@@ -1031,14 +1331,42 @@ function endMatch(pWon){
     scores.sort((a,b)=> (b.playerScore ?? b.score) - (a.playerScore ?? a.score));
     scores.splice(8);
     try{ localStorage.setItem("pong_fr_scores_v2", JSON.stringify(scores)); }catch(e){}
+
+    const profileName = getActiveProfile();
+    if(profileName){
+      const profiles = getProfiles();
+      if(!profiles[profileName]) profiles[profileName] = { buildPoints: 0 };
+      const before = profiles[profileName].buildPoints;
+      if(pWon){
+        profiles[profileName].buildPoints += pScore;
+      } else if(riskMode){
+        profiles[profileName].buildPoints = Math.max(0, profiles[profileName].buildPoints - aScore);
+      }
+      saveProfiles(profiles);
+      renderMonument();
+      const finaleThreshold = MONUMENTS[MONUMENTS.length - 1].threshold;
+      if(before < finaleThreshold && profiles[profileName].buildPoints >= finaleThreshold){
+        finaleTriggered = true;
+      }
+    }
   } else {
     duels.unshift({ left:leftName, right:rightName, leftScore:pScore, rightScore:aScore, winner: pWon ? leftName : rightName });
     duels.splice(8);
     try{ localStorage.setItem("pong_fr_duels", JSON.stringify(duels)); }catch(e){}
   }
 
-  if(pWon){ spawnConfetti(); playAnthemMotif(); vibrate([40,60,40,60,120]); }
-  else { vibrate(220); }
+  if(pWon){ vibrate([40,60,40,60,120]); } else { vibrate(220); }
+
+  if(finaleTriggered){
+    finaleSpeech = NAPOLEON_SPEECHES[Math.floor(Math.random()*NAPOLEON_SPEECHES.length)];
+    finaleStartTime = Date.now();
+    spawnConfetti(); spawnConfetti();
+    playAnthemMotif();
+    requestAnimationFrame(drawFinale);
+    return;
+  }
+
+  if(pWon){ spawnConfetti(); playAnthemMotif(); }
 
   const winnerName = pWon ? leftName : rightName;
   const titleText = mode === "single" ? (pWon ? "Victoire !" : "Défaite !") : `${winnerName} gagne !`;
@@ -1063,6 +1391,72 @@ function endMatch(pWon){
     if(confetti.length) requestAnimationFrame(drawEnd);
   };
   drawEnd();
+}
+
+function wrapText(text, maxWidth, font){
+  ctx.font = font;
+  const words = text.split(" ");
+  const lines = [];
+  let line = "";
+  words.forEach(w=>{
+    const test = line ? line + " " + w : w;
+    if(ctx.measureText(test).width > maxWidth && line){
+      lines.push(line);
+      line = w;
+    } else {
+      line = test;
+    }
+  });
+  if(line) lines.push(line);
+  return lines;
+}
+
+function formatPlaqueDate(){
+  const d = new Date();
+  const months = ["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function drawFinale(){
+  drawBackground(); drawParticles(); updateConfetti(); drawConfetti();
+  if(Math.random() < 0.06) spawnConfetti();
+
+  ctx.fillStyle = "rgba(4,10,20,.88)";
+  ctx.fillRect(0,0,W,H);
+
+  const img = monumentImageCache["napoleon"];
+  const iw = 190, ih = 270, ix = 55, iy = H/2 - ih/2;
+  if(img && img.complete && img.naturalWidth){
+    ctx.drawImage(img, ix, iy, iw, ih);
+  }
+  ctx.strokeStyle = "#c8a355"; ctx.lineWidth = 3;
+  ctx.strokeRect(ix, iy, iw, ih);
+
+  const textX = ix + iw + 40;
+  const textWidth = W - textX - 40;
+
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#e8c874";
+  ctx.font = "30px 'Playfair Display', serif";
+  ctx.fillText("Napoléon est achevé !", textX, 80);
+
+  ctx.font = "italic 15px 'EB Garamond', serif";
+  ctx.fillStyle = "#f2ead9";
+  const lines = wrapText(finaleSpeech, textWidth, "italic 15px 'EB Garamond', serif");
+  lines.forEach((line,i)=> ctx.fillText(line, textX, 118 + i*22));
+
+  const plaqueY = 118 + lines.length*22 + 34;
+  ctx.font = "12px 'EB Garamond', serif";
+  ctx.fillStyle = "#c9bd9c";
+  ctx.fillText(`Inauguré le ${formatPlaqueDate()}`, textX, plaqueY);
+  ctx.fillText("en présence du Président de la République et de Gustave Eiffel", textX, plaqueY + 18);
+
+  ctx.font = "13px 'EB Garamond', serif";
+  ctx.fillStyle = "#e8c874";
+  ctx.fillText("Appuyez sur Menu pour continuer", textX, H - 40);
+
+  const elapsed = Date.now() - finaleStartTime;
+  if(confetti.length || elapsed < 7000) requestAnimationFrame(drawFinale);
 }
 
 function loop(){
