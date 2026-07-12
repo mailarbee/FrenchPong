@@ -1,4 +1,4 @@
-const CACHE = "pong-fr-belle-epoque-v2";
+const CACHE = "pong-fr-belle-epoque-v3";
 const ASSETS = [
   "./",
   "./index.html",
