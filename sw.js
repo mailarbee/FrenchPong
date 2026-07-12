@@ -1,10 +1,16 @@
-const CACHE = "pong-fr-belle-epoque-v1";
+const CACHE = "pong-fr-belle-epoque-v2";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
   "./icon-192.png",
-  "./icon-512.png"
+  "./icon-512.png",
+  "./fonts/playfair-display-600.woff2",
+  "./fonts/playfair-display-700.woff2",
+  "./fonts/playfair-display-900.woff2",
+  "./fonts/eb-garamond-400.woff2",
+  "./fonts/eb-garamond-600.woff2",
+  "./fonts/eb-garamond-400-italic.woff2"
 ];
 
 self.addEventListener("install", e => {
