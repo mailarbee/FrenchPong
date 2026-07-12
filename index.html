@@ -376,8 +376,14 @@ populateInputSelects();
 function renderHighscores(){
   const box = document.getElementById("highscores");
   if(!scores.length){ box.innerHTML = "<em>Aucun score solo encore inscrit au tableau.</em>"; return; }
-  box.innerHTML = "<strong>Tableau d'honneur (solo)</strong><br>" + scores.slice(0,5)
-    .map((s,i)=>`${i+1}. ${escapeHtml(s.name)} — ${s.score}`).join("<br>");
+  box.innerHTML = "<strong>Tableau d'honneur (solo)</strong><br>" + scores.slice(0,5).map((s,i)=>{
+    // Fallback for records saved before this format existed (just {name, score}).
+    const playerScore = s.playerScore !== undefined ? s.playerScore : s.score;
+    const opponentScore = s.opponentScore !== undefined ? s.opponentScore : "?";
+    const opponent = s.opponent || "IA";
+    const outcome = s.won === undefined ? "" : (s.won ? " ✓" : " ✗");
+    return `${i+1}. ${escapeHtml(s.name)} — ${playerScore}–${opponentScore} vs ${escapeHtml(opponent)}${outcome}`;
+  }).join("<br>");
 }
 function renderDuels(){
   const box = document.getElementById("duels");
@@ -1014,8 +1020,15 @@ function endMatch(pWon){
   releaseWakeLock();
 
   if(mode === "single"){
-    scores.push({name: leftName, score: pScore});
-    scores.sort((a,b)=>b.score-a.score);
+    const diffLabels = { easy:"Café du Coin", medium:"Citoyen", hard:"Napoléon" };
+    scores.push({
+      name: leftName,
+      playerScore: pScore,
+      opponentScore: aScore,
+      opponent: "IA (" + (diffLabels[diff] || diff) + ")",
+      won: pWon
+    });
+    scores.sort((a,b)=> (b.playerScore ?? b.score) - (a.playerScore ?? a.score));
     scores.splice(8);
     try{ localStorage.setItem("pong_fr_scores_v2", JSON.stringify(scores)); }catch(e){}
   } else {
