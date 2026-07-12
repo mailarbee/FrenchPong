@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="fr" translate="no" class="notranslate">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Le Pong Français — Belle Époque</title>
+<meta name="theme-color" content="#0e1b3a">
+<meta name="description" content="Un Pong à thème français, Belle Époque édition.">
+<meta name="google" content="notranslate">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;900&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<!--
+  Codes secrets (tapez le mot n'importe où sur l'écran du menu — pas besoin de champ) :
+  BAGUETTE   -> raquette longue
+  PETITNOIR  -> balle rapide dès le départ
+  1789       -> teinte "révolution"
+  RIDERE     -> Memento Ridere
+-->
+<style>
+  :root{
+    --parchment:#f2ead9;
+    --parchment-dark:#e4d7b8;
+    --navy:#0e1b3a;
+    --bleu-france:#0b2a5b;
+    --rouge:#a3162c;
+    --gold:#c8a355;
+    --gold-bright:#e8c874;
+    --ink:#241a10;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:radial-gradient(ellipse at top, #1a2a52 0%, var(--navy) 60%);
+    color:var(--parchment);
+    font-family:'EB Garamond', Georgia, serif;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    padding:18px 12px 40px;
+  }
+  h1{
+    font-family:'Playfair Display', Georgia, serif;
+    font-weight:900;
+    letter-spacing:.04em;
+    margin:6px 0 2px;
+    font-size:clamp(1.6rem, 4vw, 2.6rem);
+    color:var(--gold-bright);
+    text-shadow:0 2px 0 rgba(0,0,0,.4);
+    text-align:center;
+  }
+  .ornament{
+    color:var(--gold);
+    font-size:.95rem;
+    letter-spacing:.3em;
+    margin-bottom:14px;
+    opacity:.85;
+    transition:color .3s ease, text-shadow .3s ease;
+  }
+  .ornament.shimmer{
+    color:var(--gold-bright);
+    text-shadow:0 0 10px var(--gold-bright), 0 0 20px var(--gold-bright);
+  }
+  #panel{
+    background:linear-gradient(180deg, var(--parchment) 0%, var(--parchment-dark) 100%);
+    color:var(--ink);
+    border:2px solid var(--gold);
+    outline:1px solid rgba(200,163,85,.4);
+    outline-offset:4px;
+    border-radius:6px;
+    padding:16px 20px;
+    max-width:640px;
+    width:100%;
+    box-shadow:0 12px 30px rgba(0,0,0,.45);
+  }
+  #panel .row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    justify-content:center;
+    align-items:flex-end;
+    margin-bottom:10px;
+  }
+  #panel label{
+    font-size:.8rem;
+    letter-spacing:.06em;
+    text-transform:uppercase;
+    color:#5a4324;
+    display:block;
+    margin-bottom:3px;
+  }
+  #panel input, #panel select{
+    font-family:'EB Garamond', Georgia, serif;
+    font-size:1rem;
+    padding:7px 10px;
+    border:1px solid #a98a4d;
+    border-radius:3px;
+    background:#fffaf0;
+  }
+  #panel input[type=file]{ padding:5px; font-size:.85rem; max-width:220px; }
+  .field{display:flex; flex-direction:column;}
+  button{
+    font-family:'Playfair Display', Georgia, serif;
+    font-weight:700;
+    letter-spacing:.03em;
+    background:linear-gradient(180deg, var(--bleu-france), #071a3d);
+    color:var(--parchment);
+    border:1px solid var(--gold);
+    border-radius:4px;
+    padding:9px 18px;
+    cursor:pointer;
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  button:hover{ transform:translateY(-1px); box-shadow:0 4px 10px rgba(0,0,0,.35); }
+  button:active{ transform:translateY(0); }
+  button.secondary{ background:linear-gradient(180deg, #6b0f1e, var(--rouge)); }
+  button.ghost{
+    background:transparent;
+    color:#5a4324;
+    border:1px solid #a98a4d;
+    font-family:'EB Garamond', Georgia, serif;
+    font-size:.85rem;
+    padding:6px 12px;
+  }
+  #rules{
+    font-size:.85rem;
+    color:#5a4324;
+    text-align:center;
+    margin-top:6px;
+    line-height:1.5;
+  }
+  #bgSection{
+    border-top:1px dashed #a98a4d;
+    margin-top:12px;
+    padding-top:10px;
+    text-align:center;
+  }
+  #bgSection p{ font-size:.78rem; color:#5a4324; margin:4px 0 8px; line-height:1.5; }
+  #appRoot{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    width:100%;
+  }
+  #appRoot:fullscreen, #appRoot:-webkit-full-screen, #appRoot:-moz-full-screen{
+    background:#000;
+    justify-content:center;
+    padding:0;
+  }
+  #appRoot:fullscreen #canvasWrap, #appRoot:-webkit-full-screen #canvasWrap, #appRoot:-moz-full-screen #canvasWrap{
+    border:none; border-image:none; box-shadow:none; margin-top:0; max-width:none;
+  }
+  #canvasWrap{
+    position:relative;
+    margin-top:16px;
+    border:10px solid transparent;
+    border-image: repeating-linear-gradient(45deg, var(--gold) 0 8px, var(--gold-bright) 8px 16px) 12;
+    box-shadow:0 18px 40px rgba(0,0,0,.5);
+    max-width:96vw;
+  }
+  canvas{
+    display:block;
+    background:#04172f;
+    max-width:96vw;
+    height:auto;
+    cursor:none;
+    touch-action:none;
+  }
+  #hint{
+    margin-top:10px;
+    font-size:.8rem;
+    color:#c9bd9c;
+    text-align:center;
+    max-width:640px;
+  }
+  .hidden{display:none !important;}
+  #hud-btns{
+    position:absolute;
+    top:8px;
+    right:10px;
+    display:flex;
+    gap:6px;
+    z-index:2;
+  }
+  #hud-btns button{
+    padding:4px 8px;
+    font-size:.75rem;
+    background:rgba(14,27,58,.7);
+  }
+  #iosHint{
+    font-size:.78rem;
+    color:#5a4324;
+    margin-top:8px;
+    text-align:center;
+  }
+</style>
+</head>
+<body>
+
+<div id="appRoot">
+
+<div class="ornament">☙ ────── ⚜ ────── ❧</div>
+<h1>Le Pong Français</h1>
+<div class="ornament">Belle Époque Édition</div>
+
+<div id="panel">
+  <div class="row">
+    <div class="field">
+      <label for="name">Nom du joueur</label>
+      <input id="name" placeholder="Votre nom" value="Rolf" maxlength="16">
+    </div>
+    <div class="field">
+      <label for="difficulty">Adversaire</label>
+      <select id="difficulty">
+        <option value="easy">Café du Coin</option>
+        <option value="medium" selected>Citoyen</option>
+        <option value="hard">Napoléon</option>
+      </select>
+    </div>
+  </div>
+  <div class="row">
+    <button onclick="startGame()">⚜ Commencer le match</button>
+    <button class="secondary" onclick="toggleSound()" id="soundBtn">🔊 Son activé</button>
+    <button class="ghost" onclick="toggleFullscreen()">⛶ Plein écran</button>
+    <button class="secondary hidden" id="installBtn">📲 Installer</button>
+  </div>
+  <div id="rules">
+    Souris / doigt pour déplacer la raquette — ou flèches ↑↓ / W·S au clavier.<br>
+    Premier à 11 points, <em>avec deux points d'avance</em>. <strong>P</strong> = pause/reprise, <strong>⛶</strong> = plein écran.
+  </div>
+  <div id="iosHint" class="hidden">📲 Sur iPhone / iPad : appuyez sur Partager, puis « Sur l'écran d'accueil » pour installer le jeu.</div>
+
+  <div id="bgSection">
+    <p>Fond d'écran personnalisé (facultatif) — remplace les décors de villes par votre image.</p>
+    <div class="row">
+      <input type="file" id="bgFile" accept="image/*">
+      <button class="ghost" onclick="clearCustomBg()">Réinitialiser le fond</button>
+      <button class="ghost" onclick="copyPromptTemplate()">📋 Copier un modèle pour IA</button>
+    </div>
+    <p id="bgStatus"></p>
+  </div>
+
+  <div id="highscores" style="margin-top:10px; font-size:.85rem; text-align:center;"></div>
+</div>
+
+<div id="canvasWrap" class="hidden">
+  <canvas id="game" width="1000" height="550"></canvas>
+  <div id="hud-btns">
+    <button onclick="togglePause()">⏸ Pause</button>
+    <button onclick="toggleFullscreen()">⛶ Plein écran</button>
+    <button onclick="backToMenu()">☰ Menu</button>
+  </div>
+</div>
+
+<div id="hint" class="hidden">Astuce : la partie de la raquette où la balle vous touche change son angle de rebond — visez les bords pour des tirs plus violents.</div>
+
+</div><!-- /appRoot -->
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const W = canvas.width, H = canvas.height;
+
+let active = false, paused = false, sound = true;
+let player = "Joueur";
+let diff = "medium";
+let paddleH = 100;
+const paddleW = 16;
+let pY = H/2 - paddleH/2, aY = H/2 - paddleH/2;
+let pScore = 0, aScore = 0;
+let cityIndex = 0;
+let ball = { x: W/2, y: H/2, dx: 6, dy: 3 };
+const BASE_SPEED = 7, MAX_SPEED = 15;
+let particles = [];
+let confetti = [];
+let revolutionMode = false;
+let customBgImg = null;
+
+const cities = ["Paris","Lyon","Marseille","Nice","Bordeaux"];
+
+const scores = JSON.parse(localStorage.getItem("pong_fr_scores_v2") || "[]");
+renderHighscores();
+loadCustomBgFromStorage();
+
+function renderHighscores(){
+  const box = document.getElementById("highscores");
+  if(!scores.length){ box.innerHTML = "<em>Aucun score encore inscrit au tableau.</em>"; return; }
+  box.innerHTML = "<strong>Tableau d'honneur</strong><br>" + scores.slice(0,5)
+    .map((s,i)=>`${i+1}. ${escapeHtml(s.name)} — ${s.score}`).join("<br>");
+}
+function escapeHtml(str){
+  return str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function frenchNumber(n){
+  const words=["zéro","un","deux","trois","quatre","cinq","six","sept","huit","neuf","dix",
+    "onze","douze","treize","quatorze","quinze","seize"];
+  if(n<=16) return words[n];
+  if(n<20) return "dix-"+words[n-10];
+  if(n===20) return "vingt";
+  return n.toString();
+}
+
+function beep(freq=440, dur=0.05, type="square", vol=0.05){
+  if(!sound) return;
+  try{
+    const actx = beep._ctx || (beep._ctx = new (window.AudioContext||window.webkitAudioContext)());
+    const o = actx.createOscillator();
+    const g = actx.createGain();
+    o.type = type; o.frequency.value = freq;
+    g.gain.value = vol;
+    o.connect(g); g.connect(actx.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + dur);
+    o.stop(actx.currentTime + dur);
+  }catch(e){}
+}
+
+function playAnthemMotif(){
+  if(!sound) return;
+  const notes = [523.25, 523.25, 622.25, 783.99, 622.25, 783.99, 987.77];
+  notes.forEach((f,i)=> setTimeout(()=>beep(f, 0.16, "square", 0.06), i*140));
+}
+
+function toggleSound(){
+  sound = !sound;
+  document.getElementById("soundBtn").textContent = sound ? "🔊 Son activé" : "🔇 Son coupé";
+}
+
+/* ---------- Codes secrets : tapés n'importe où, sans champ visible ---------- */
+let keyBuffer = "";
+let pendingEgg = null;
+const secretCodes = ["BAGUETTE","PETITNOIR","1789","RIDERE"];
+document.addEventListener("keydown", e=>{
+  if(active && !paused){
+    keys[e.key] = true;
+    return;
+  }
+  if(e.key.length === 1){
+    keyBuffer = (keyBuffer + e.key).slice(-20);
+    const upper = keyBuffer.toUpperCase();
+    for(const code of secretCodes){
+      if(upper.endsWith(code)){
+        pendingEgg = code;
+        flashOrnament();
+        keyBuffer = "";
+      }
+    }
+  }
+});
+function flashOrnament(){
+  document.querySelectorAll(".ornament").forEach(el=>{
+    el.classList.add("shimmer");
+    setTimeout(()=> el.classList.remove("shimmer"), 900);
+  });
+}
+
+/* ---------- Fond d'écran personnalisé ---------- */
+function loadCustomBgFromStorage(){
+  const data = localStorage.getItem("pong_fr_custom_bg");
+  if(data){
+    const img = new Image();
+    img.onload = ()=>{ customBgImg = img; };
+    img.src = data;
+    document.getElementById("bgStatus").textContent = "Un fond personnalisé est enregistré.";
+  }
+}
+document.getElementById("bgFile").addEventListener("change", function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev){
+    const img = new Image();
+    img.onload = function(){
+      const off = document.createElement("canvas");
+      off.width = W; off.height = H;
+      const octx = off.getContext("2d");
+      const canvasRatio = W/H, imgRatio = img.width/img.height;
+      let sx,sy,sw,sh;
+      if(imgRatio > canvasRatio){ sh=img.height; sw=sh*canvasRatio; sx=(img.width-sw)/2; sy=0; }
+      else { sw=img.width; sh=sw/canvasRatio; sx=0; sy=(img.height-sh)/2; }
+      octx.drawImage(img, sx,sy,sw,sh, 0,0,W,H);
+      const dataUrl = off.toDataURL("image/jpeg", 0.85);
+      try{
+        localStorage.setItem("pong_fr_custom_bg", dataUrl);
+        document.getElementById("bgStatus").textContent = "Fond personnalisé enregistré.";
+      }catch(err){
+        document.getElementById("bgStatus").textContent = "Image trop volumineuse pour être enregistrée, mais utilisée pour cette partie.";
+      }
+      const finalImg = new Image();
+      finalImg.onload = ()=>{ customBgImg = finalImg; };
+      finalImg.src = dataUrl;
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+function clearCustomBg(){
+  customBgImg = null;
+  localStorage.removeItem("pong_fr_custom_bg");
+  document.getElementById("bgStatus").textContent = "Fond réinitialisé aux décors de villes.";
+  document.getElementById("bgFile").value = "";
+}
+function copyPromptTemplate(){
+  const prompt = "Image de fond pour un jeu de Pong à thème français, style Belle Époque.\n"
+    + "Format : 1000×550 pixels, paysage, ratio 20:11.\n"
+    + "Sujet : une silhouette de ville française (Paris, Lyon, Marseille, Nice ou Bordeaux) en tons sombres, "
+    + "bleu marine et dorés, ambiance nocturne élégante fin XIXe siècle. Densité de détails uniforme sur toute "
+    + "l'image, sans zone volontairement assombrie ou vidée — l'application gère elle-même le contraste par-dessus.\n"
+    + "Contraintes importantes : pas de texte, pas de personnages au premier plan, pas de bordure, "
+    + "pas de bande ou de forme géométrique nette ajoutée dans l'image (l'assombrissement pour la lisibilité "
+    + "est déjà géré par le jeu, pas besoin de l'inclure dans l'image).";
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(prompt).then(()=> alert("Modèle de requête copié — collez-le dans votre générateur d'image IA préféré."));
+  } else {
+    prompt_fallback(prompt);
+  }
+}
+function prompt_fallback(text){ window.prompt("Copiez ce modèle :", text); }
+
+/* ---------- Partie ---------- */
+function startGame(){
+  player = document.getElementById("name").value.trim() || "Joueur";
+  diff = document.getElementById("difficulty").value;
+  paddleH = 100;
+  revolutionMode = false;
+  document.body.style.background = "";
+
+  const egg = pendingEgg;
+  pendingEgg = null;
+  if(egg === "BAGUETTE") paddleH = 170;
+  if(egg === "1789") revolutionMode = true;
+  if(egg === "RIDERE") showMotto();
+
+  pScore = 0; aScore = 0; cityIndex = 0;
+  pY = H/2 - paddleH/2; aY = H/2 - paddleH/2;
+  resetBall();
+  if(egg === "PETITNOIR"){ ball.dx *= 1.6; ball.dy *= 1.6; }
+
+  document.getElementById("canvasWrap").classList.remove("hidden");
+  document.getElementById("hint").classList.remove("hidden");
+  document.getElementById("panel").classList.add("hidden");
+  active = true; paused = false;
+  applyFullscreenLayout();
+  requestAnimationFrame(loop);
+}
+
+function showMotto(){
+  setTimeout(()=>{
+    alert("Bona Cogitata · Bona Verba · Bona Facta\nMemento Ridere");
+  }, 300);
+}
+
+function backToMenu(){
+  active = false; paused = false;
+  document.getElementById("canvasWrap").classList.add("hidden");
+  document.getElementById("hint").classList.add("hidden");
+  document.getElementById("panel").classList.remove("hidden");
+  renderHighscores();
+  applyFullscreenLayout();
+}
+
+function togglePause(){
+  if(!active) return;
+  paused = !paused;
+  if(paused){
+    drawPauseOverlay();
+  } else {
+    requestAnimationFrame(loop);
+  }
+}
+function drawPauseOverlay(){
+  ctx.fillStyle = "rgba(4,23,47,.75)";
+  ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = "#e8c874";
+  ctx.font = "42px 'Playfair Display', serif";
+  ctx.textAlign = "center";
+  ctx.fillText("Pause", W/2, H/2-10);
+  ctx.font = "16px 'EB Garamond', serif";
+  ctx.fillStyle = "#f2ead9";
+  ctx.fillText("Appuyez sur P pour reprendre", W/2, H/2+22);
+  ctx.textAlign = "left";
+}
+
+function toggleFullscreen(){
+  const root = document.getElementById("appRoot");
+  const isFs = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+  if(!isFs){
+    const req = root.requestFullscreen || root.webkitRequestFullscreen || root.mozRequestFullScreen || root.msRequestFullscreen;
+    if(req) req.call(root);
+  } else {
+    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+    if(exit) exit.call(document);
+  }
+}
+
+// Scale the canvas to actually fill the screen in fullscreen mode, preserving aspect ratio.
+// (width:auto/height:auto on a <canvas> falls back to its raw pixel size, not a scaled-up size —
+// that's what caused the small centered square before.)
+// Scale the canvas to actually fill the screen in fullscreen mode, preserving aspect ratio,
+// and hide the title/ornament header during fullscreen play so it doesn't eat vertical space
+// that the sizing calculation assumed was available.
+function applyFullscreenLayout(){
+  const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
+  const hideChrome = isFs && active;
+  const wrap = document.getElementById("canvasWrap");
+
+  document.querySelectorAll(".ornament").forEach(el => el.style.display = hideChrome ? "none" : "");
+  const h1 = document.querySelector("h1");
+  if(h1) h1.style.display = hideChrome ? "none" : "";
+  const hintEl = document.getElementById("hint");
+  if(hintEl) hintEl.style.display = hideChrome ? "none" : "";
+
+  if(isFs){
+    // Inline styles beat any CSS specificity/pseudo-class quirks, guaranteeing the
+    // decorative border-image (which "border:none" alone does not clear) is really gone.
+    wrap.style.border = "none";
+    wrap.style.borderImage = "none";
+    wrap.style.boxShadow = "none";
+    wrap.style.margin = "0";
+    wrap.style.maxWidth = "none";
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const ratio = W / H;
+    let cw = vw, ch = vw / ratio;
+    if(ch > vh){ ch = vh; cw = vh * ratio; }
+    canvas.style.width = cw + "px";
+    canvas.style.height = ch + "px";
+  } else {
+    wrap.style.border = "";
+    wrap.style.borderImage = "";
+    wrap.style.boxShadow = "";
+    wrap.style.margin = "";
+    wrap.style.maxWidth = "";
+    document.documentElement.style.overflow = "";
+    document.body.style.overflow = "";
+    canvas.style.width = "";
+    canvas.style.height = "";
+  }
+}
+document.addEventListener("fullscreenchange", applyFullscreenLayout);
+document.addEventListener("webkitfullscreenchange", applyFullscreenLayout);
+document.addEventListener("mozfullscreenchange", applyFullscreenLayout);
+window.addEventListener("resize", applyFullscreenLayout);
+
+function resetBall(scoredBy){
+  const dir = scoredBy === "player" ? -1 : (scoredBy === "ai" ? 1 : (Math.random()>0.5?1:-1));
+  ball = { x: W/2, y: H/2, dx: BASE_SPEED*dir, dy: (Math.random()*6)-3 };
+}
+
+function clampSpeed(){
+  const speed = Math.hypot(ball.dx, ball.dy);
+  if(speed > MAX_SPEED){
+    const scale = MAX_SPEED/speed;
+    ball.dx *= scale; ball.dy *= scale;
+  }
+}
+
+function updateAI(){
+  let reaction, error;
+  if(diff === "easy"){ reaction=.045; error=(Math.random()-0.5)*130; }
+  else if(diff === "hard"){ reaction=.16; error=(Math.random()-0.5)*24; }
+  else { reaction=.09; error=(Math.random()-0.5)*65; }
+
+  const target = ball.y - paddleH/2 + error;
+  aY += (target - aY) * reaction;
+  aY = Math.max(0, Math.min(H - paddleH, aY));
+}
+
+function paddleBounce(paddleY, towardsRight){
+  const relative = (ball.y - (paddleY + paddleH/2)) / (paddleH/2);
+  const maxAngle = Math.PI/3;
+  const angle = relative * maxAngle;
+  let speed = Math.hypot(ball.dx, ball.dy) * 1.06;
+  speed = Math.min(speed, MAX_SPEED);
+  ball.dx = (towardsRight ? 1 : -1) * speed * Math.cos(angle);
+  ball.dy = speed * Math.sin(angle) + (Math.random()-0.5)*0.6;
+  spawnParticles(ball.x, ball.y);
+  beep(towardsRight ? 300 : 260, 0.05);
+}
+
+function spawnParticles(x,y){
+  const colors = ["#0b2a5b","#f2ead9","#a3162c"];
+  for(let i=0;i<8;i++){
+    particles.push({ x, y, vx:(Math.random()-0.5)*4, vy:(Math.random()-0.5)*4, life:24, color: colors[i%3] });
+  }
+}
+function updateParticles(){
+  particles.forEach(p=>{ p.x+=p.vx; p.y+=p.vy; p.life--; });
+  particles = particles.filter(p=>p.life>0);
+}
+function drawParticles(){
+  particles.forEach(p=>{
+    ctx.globalAlpha = Math.max(p.life/24, 0);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x-2, p.y-2, 4, 4);
+  });
+  ctx.globalAlpha = 1;
+}
+
+function spawnConfetti(){
+  const colors = ["#0b2a5b","#f2ead9","#a3162c","#c8a355"];
+  for(let i=0;i<140;i++){
+    confetti.push({
+      x: Math.random()*W, y: -20 - Math.random()*200,
+      vy: 2+Math.random()*3, vx:(Math.random()-0.5)*2,
+      size: 4+Math.random()*5, color: colors[i%colors.length],
+      rot: Math.random()*Math.PI, vr:(Math.random()-0.5)*0.2
+    });
+  }
+}
+function updateConfetti(){
+  confetti.forEach(c=>{ c.y+=c.vy; c.x+=c.vx; c.rot+=c.vr; });
+  confetti = confetti.filter(c=>c.y < H+30);
+}
+function drawConfetti(){
+  confetti.forEach(c=>{
+    ctx.save();
+    ctx.translate(c.x,c.y); ctx.rotate(c.rot);
+    ctx.fillStyle = c.color;
+    ctx.fillRect(-c.size/2,-c.size/2,c.size,c.size*0.6);
+    ctx.restore();
+  });
+}
+
+function drawCityMotif(){
+  ctx.fillStyle = "rgba(0,0,0,.28)";
+  switch(cities[cityIndex]){
+    case "Paris":
+      ctx.fillRect(W/2-10, 150, 20, 260);
+      ctx.beginPath();
+      ctx.moveTo(W/2, 90); ctx.lineTo(W/2-45, 180); ctx.lineTo(W/2+45, 180); ctx.fill();
+      break;
+    case "Marseille":
+      ctx.fillRect(W/2-100, 340, 200, 12);
+      for(let i=0;i<4;i++) ctx.fillRect(W/2-70+i*40, 250, 5, 90);
+      break;
+    case "Nice":
+      for(let i=0;i<5;i++) ctx.fillRect(140+i*160, 130, 7, 240);
+      break;
+    case "Lyon":
+      ctx.fillRect(W/2-80, 130, 160, 130);
+      break;
+    case "Bordeaux":
+      for(let i=0;i<6;i++) ctx.fillRect(120+i*130, 160, 12, 200);
+      break;
+  }
+}
+
+function drawCover(img){
+  const canvasRatio = W/H, imgRatio = img.width/img.height;
+  let sx,sy,sw,sh;
+  if(imgRatio > canvasRatio){ sh=img.height; sw=sh*canvasRatio; sx=(img.width-sw)/2; sy=0; }
+  else { sw=img.width; sh=sw/canvasRatio; sx=0; sy=(img.height-sh)/2; }
+  ctx.drawImage(img, sx,sy,sw,sh, 0,0,W,H);
+}
+
+function drawBackground(){
+  if(customBgImg){
+    drawCover(customBgImg);
+    ctx.fillStyle = "rgba(4,23,47,.42)";
+    ctx.fillRect(0,0,W,H);
+  } else {
+    ctx.fillStyle = "#04172f";
+    ctx.fillRect(0,0,W,H);
+    ctx.fillStyle = "#0b2a5b"; ctx.fillRect(0,0,W*0.05,H);
+    ctx.fillStyle = "#f2ead9"; ctx.fillRect(W*0.05,0,W*0.02,H);
+    ctx.fillStyle = "#a3162c"; ctx.fillRect(W*0.93,0,W*0.07,H);
+    drawCityMotif();
+  }
+  ctx.fillStyle = "rgba(242,234,217,.25)";
+  for(let i=0;i<H;i+=36) ctx.fillRect(W/2-2, i, 4, 20);
+  if(revolutionMode){
+    ctx.fillStyle = "rgba(163,22,44,.12)";
+    ctx.fillRect(0,0,W,H);
+  }
+}
+
+function drawScoreboard(){
+  ctx.fillStyle = "rgba(14,27,58,.55)";
+  ctx.fillRect(W/2-160, 10, 320, 46);
+  ctx.strokeStyle = "#c8a355"; ctx.lineWidth = 1.5;
+  ctx.strokeRect(W/2-160, 10, 320, 46);
+
+  ctx.fillStyle = "#f2ead9";
+  ctx.font = "22px 'Playfair Display', serif";
+  ctx.textAlign = "center";
+  ctx.fillText(`${frenchNumber(pScore)}  —  ${frenchNumber(aScore)}`, W/2, 40);
+
+  ctx.font = "13px 'EB Garamond', serif";
+  ctx.fillText(customBgImg ? "Fond personnalisé" : cities[cityIndex], W/2, 66);
+  ctx.textAlign = "left";
+}
+
+function endMatch(won){
+  active = false;
+  scores.push({name: player, score: pScore});
+  scores.sort((a,b)=>b.score-a.score);
+  scores.splice(8);
+  localStorage.setItem("pong_fr_scores_v2", JSON.stringify(scores));
+
+  if(won) { spawnConfetti(); playAnthemMotif(); }
+
+  const drawEnd = () => {
+    drawBackground(); drawParticles(); updateConfetti(); drawConfetti();
+    ctx.fillStyle = "rgba(4,23,47,.85)";
+    ctx.fillRect(W/2-260, H/2-110, 520, 220);
+    ctx.strokeStyle = "#c8a355"; ctx.lineWidth = 3;
+    ctx.strokeRect(W/2-260, H/2-110, 520, 220);
+    ctx.textAlign = "center";
+    ctx.fillStyle = won ? "#e8c874" : "#d68a90";
+    ctx.font = "48px 'Playfair Display', serif";
+    ctx.fillText(won ? "Victoire !" : "Défaite !", W/2, H/2-20);
+    ctx.font = "18px 'EB Garamond', serif";
+    ctx.fillStyle = "#f2ead9";
+    ctx.fillText(`${player} — ${pScore} à ${aScore}`, W/2, H/2+20);
+    ctx.font = "14px 'EB Garamond', serif";
+    ctx.fillText("Appuyez sur Menu pour rejouer", W/2, H/2+55);
+    ctx.textAlign = "left";
+    if(confetti.length) requestAnimationFrame(drawEnd);
+  };
+  drawEnd();
+}
+
+function loop(){
+  if(!active || paused) return;
+
+  if(keys["ArrowUp"] || keys["w"] || keys["W"]) pY -= 8;
+  if(keys["ArrowDown"] || keys["s"] || keys["S"]) pY += 8;
+  pY = Math.max(0, Math.min(H - paddleH, pY));
+
+  ball.x += ball.dx; ball.y += ball.dy;
+
+  if(ball.y < 6){ ball.y = 6; ball.dy *= -1; beep(500,0.04); }
+  if(ball.y > H-6){ ball.y = H-6; ball.dy *= -1; beep(500,0.04); }
+
+  if(ball.dx < 0 && ball.x - 10 < paddleW+18 && ball.y > pY && ball.y < pY+paddleH){
+    ball.x = paddleW+18+10;
+    paddleBounce(pY, true);
+  }
+  if(ball.dx > 0 && ball.x + 10 > W-paddleW-18 && ball.y > aY && ball.y < aY+paddleH){
+    ball.x = W-paddleW-18-10;
+    paddleBounce(aY, false);
+  }
+  clampSpeed();
+
+  updateAI();
+
+  if(ball.x < 0){ aScore++; beep(180,0.15); resetBall("ai"); }
+  if(ball.x > W){ pScore++; beep(660,0.15); resetBall("player"); }
+
+  cityIndex = Math.floor((pScore+aScore)/5) % cities.length;
+
+  updateParticles();
+
+  drawBackground();
+  drawParticles();
+
+  ctx.fillStyle = "#e8c874";
+  roundRect(paddleW+2, pY, paddleW, paddleH, 5); ctx.fill();
+  roundRect(W-paddleW*2-2, aY, paddleW, paddleH, 5); ctx.fill();
+
+  ctx.save();
+  ctx.translate(ball.x, ball.y);
+  ctx.rotate(Math.atan2(ball.dy, ball.dx));
+  ctx.font = "26px serif";
+  ctx.fillStyle = "#f2ead9";
+  ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillText("⚜", 0, 0);
+  ctx.restore();
+  ctx.textBaseline = "alphabetic"; ctx.textAlign = "left";
+
+  ctx.font = "16px 'EB Garamond', serif";
+  ctx.fillStyle = "#e8c874";
+  ctx.fillText(player, paddleW+2, pY-10 < 20 ? pY+paddleH+22 : pY-10);
+
+  drawScoreboard();
+
+  const leadOk = Math.abs(pScore-aScore) >= 2;
+  if((pScore>=11 || aScore>=11) && leadOk){
+    endMatch(pScore>aScore);
+    return;
+  }
+
+  requestAnimationFrame(loop);
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+const keys = {};
+window.addEventListener("keyup", e=> keys[e.key]=false);
+window.addEventListener("keydown", e=>{
+  const tag = document.activeElement && document.activeElement.tagName;
+  const typingInField = tag === "INPUT" || tag === "SELECT";
+  if((e.key==="p" || e.key==="P") && !typingInField){
+    togglePause();
+  }
+  if((e.key==="f" || e.key==="F") && !typingInField){
+    toggleFullscreen();
+  }
+});
+
+function pointerY(clientY){
+  const r = canvas.getBoundingClientRect();
+  const scale = H / r.height;
+  return (clientY - r.top) * scale;
+}
+canvas.addEventListener("mousemove", e=>{
+  pY = pointerY(e.clientY) - paddleH/2;
+  pY = Math.max(0, Math.min(H-paddleH, pY));
+});
+canvas.addEventListener("touchmove", e=>{
+  e.preventDefault();
+  pY = pointerY(e.touches[0].clientY) - paddleH/2;
+  pY = Math.max(0, Math.min(H-paddleH, pY));
+}, {passive:false});
+
+/* ---------- PWA : installation & service worker ---------- */
+if("serviceWorker" in navigator){
+  window.addEventListener("load", ()=>{
+    navigator.serviceWorker.register("sw.js").catch(()=>{});
+  });
+}
+
+let deferredPrompt;
+window.addEventListener("beforeinstallprompt", (e)=>{
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById("installBtn").classList.remove("hidden");
+});
+document.getElementById("installBtn").addEventListener("click", async ()=>{
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  document.getElementById("installBtn").classList.add("hidden");
+});
+
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+if(isIOS && !window.navigator.standalone){
+  document.getElementById("iosHint").classList.remove("hidden");
+}
+</script>
+</body>
+</html>
