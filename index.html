@@ -235,13 +235,11 @@
     border:2px solid var(--gold);
     background:#0e1b3a;
   }
-  #monumentDisplay img{
+  #monumentDisplay canvas{
     position:absolute; top:0; left:0;
     width:100%; height:100%;
-    object-fit:cover;
+    background:#000;
   }
-  #monumentImgDim{ filter:grayscale(100%) brightness(.4); opacity:.5; }
-  #monumentImgVivid{ clip-path: inset(100% 0 0 0); transition: clip-path 1.2s ease; }
   .monTrackItem{
     width:24px;height:24px;border-radius:50%;
     display:flex;align-items:center;justify-content:center;
@@ -424,8 +422,7 @@
     <button id="monumentModalClose" onclick="closeMonumentModal()" aria-label="Fermer">×</button>
     <p style="font-size:.85rem;color:#5a4324;margin:4px 0 8px;">🏛️ Monument en construction — <strong id="monumentProfileLabel"></strong></p>
     <div id="monumentDisplay">
-      <img id="monumentImgDim" src="" alt="">
-      <img id="monumentImgVivid" src="" alt="">
+      <canvas id="monumentCanvas" width="480" height="720"></canvas>
     </div>
     <p id="monumentProgressText" style="font-size:.8rem;color:#5a4324;margin-top:6px;"></p>
     <div id="monumentTrack" class="row" style="justify-content:center;gap:6px;margin-top:6px;"></div>
@@ -451,7 +448,7 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const W = canvas.width, H = canvas.height;
 const MAX_BG = 4;
-const GAME_VERSION = "1.3.2";
+const GAME_VERSION = "1.4.0";
 {
   const vt = document.getElementById("versionTag");
   if(vt) vt.textContent = "v" + GAME_VERSION;
@@ -493,9 +490,73 @@ const MONUMENTS = [
 const monumentImageCache = {};
 MONUMENTS.forEach(m=>{
   const img = new Image();
+  img.onerror = ()=>{
+    const warning = document.getElementById("monumentWarning");
+    if(warning){
+      warning.textContent = "Image introuvable — vérifiez que les fichiers image (moulin-rouge.jpg, etc.) se trouvent bien à côté d'index.html.";
+      warning.classList.remove("hidden");
+    }
+  };
+  img.onload = ()=>{
+    const modal = document.getElementById("monumentModal");
+    if(modal && !modal.classList.contains("hidden")) renderMonument();
+  };
   img.src = m.img;
   monumentImageCache[m.id] = img;
 });
+
+// Deterministic "random" pixel-grid reveal: each monument gets a fixed shuffled
+// order of grid cells (seeded from its id), so re-opening the popup shows the
+// same partial pattern rather than reshuffling every time.
+const GRID_COLS = 24, GRID_ROWS = 36;
+const revealOrderCache = {};
+function hashString(str){
+  let h = 0;
+  for(let i=0;i<str.length;i++){ h = (Math.imul(31, h) + str.charCodeAt(i)) | 0; }
+  return h;
+}
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function getRevealOrder(monId){
+  if(!revealOrderCache[monId]){
+    const n = GRID_COLS * GRID_ROWS;
+    const rand = mulberry32(hashString(monId));
+    const arr = Array.from({length:n}, (_,i)=>i);
+    for(let i=n-1;i>0;i--){
+      const j = Math.floor(rand() * (i+1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    revealOrderCache[monId] = arr;
+  }
+  return revealOrderCache[monId];
+}
+function drawMonumentReveal(canvas, monId, img, progress){
+  const c2 = canvas.getContext("2d");
+  const w = canvas.width, h = canvas.height;
+  c2.fillStyle = "#000";
+  c2.fillRect(0, 0, w, h);
+  if(!img || !img.complete || !img.naturalWidth) return;
+
+  const order = getRevealOrder(monId);
+  const total = GRID_COLS * GRID_ROWS;
+  const revealCount = Math.round(progress * total);
+  const cellW = w / GRID_COLS, cellH = h / GRID_ROWS;
+  const srcCellW = img.naturalWidth / GRID_COLS, srcCellH = img.naturalHeight / GRID_ROWS;
+
+  for(let k=0; k<revealCount; k++){
+    const idx = order[k];
+    const col = idx % GRID_COLS, row = Math.floor(idx / GRID_COLS);
+    const sx = col * srcCellW, sy = row * srcCellH;
+    const dx = col * cellW, dy = row * cellH;
+    c2.drawImage(img, sx, sy, srcCellW, srcCellH, dx, dy, cellW + 1, cellH + 1);
+  }
+}
 
 const NAPOLEON_SPEECHES = [
   "La victoire appartient au plus persévérant. Le génie n'est que la patience et la volonté inflexible de conquérir le destin. La République ne se bâtit pas sur le doute, mais sur la grandeur d'un peuple uni. Celui qui craint de perdre son chemin ne conquerra jamais le monde ; celui qui porte en lui l'âme de la Nation est déjà immortel.",
@@ -606,22 +667,14 @@ function renderMonument(){
   const allDone = points >= MONUMENTS[MONUMENTS.length-1].threshold;
 
   document.getElementById("monumentProfileLabel").textContent = name;
-  const imgDim = document.getElementById("monumentImgDim");
-  const imgVivid = document.getElementById("monumentImgVivid");
-  imgDim.src = mon.img;
-  imgVivid.src = mon.img;
-  imgVivid.style.clipPath = `inset(${(1-progress)*100}% 0 0 0)`;
 
-  const warning = document.getElementById("monumentWarning");
-  imgDim.onerror = ()=>{
-    warning.textContent = "Image introuvable — vérifiez que les fichiers image (moulin-rouge.jpg, etc.) se trouvent bien à côté d'index.html.";
-    warning.classList.remove("hidden");
-  };
-  imgDim.onload = ()=>{ warning.classList.add("hidden"); };
+  const canvas = document.getElementById("monumentCanvas");
+  canvas.dataset.monId = mon.id;
+  drawMonumentReveal(canvas, mon.id, monumentImageCache[mon.id], progress);
 
   document.getElementById("monumentProgressText").textContent = allDone
     ? `${mon.name} — achevé ! (${points} points au total)`
-    : `${mon.name} — ${into} / ${span} points (${points} au total)`;
+    : `??? — ${into} / ${span} points (${points} au total)`;
 
   const track = document.getElementById("monumentTrack");
   track.innerHTML = "";
@@ -630,7 +683,7 @@ function renderMonument(){
     const isCurrent = i === idx && !done;
     const dot = document.createElement("div");
     dot.className = "monTrackItem" + (done ? " done" : "") + (isCurrent ? " current" : "");
-    dot.title = m.name;
+    dot.title = done ? m.name : "???";
     dot.textContent = done ? "✓" : String(i+1);
     track.appendChild(dot);
   });
