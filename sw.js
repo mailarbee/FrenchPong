@@ -1,22 +1,22 @@
-const CACHE = "pong-fr-belle-epoque-v6";
+const CACHE = "pong-fr-belle-epoque-v7";
 const ASSETS = [
   "./",
   "./index.html",
   "./manifest.json",
   "./icon-192.png",
   "./icon-512.png",
-  "./fonts/playfair-display-600.woff2",
-  "./fonts/playfair-display-700.woff2",
-  "./fonts/playfair-display-900.woff2",
-  "./fonts/eb-garamond-400.woff2",
-  "./fonts/eb-garamond-600.woff2",
-  "./fonts/eb-garamond-400-italic.woff2",
-  "./monuments/moulin-rouge.jpg",
-  "./monuments/sacre-coeur.jpg",
-  "./monuments/cathedrale-reims.jpg",
-  "./monuments/negresco.jpg",
-  "./monuments/tour-eiffel.jpg",
-  "./monuments/napoleon.jpg"
+  "./playfair-display-600.woff2",
+  "./playfair-display-700.woff2",
+  "./playfair-display-900.woff2",
+  "./eb-garamond-400.woff2",
+  "./eb-garamond-600.woff2",
+  "./eb-garamond-400-italic.woff2",
+  "./moulin-rouge.jpg",
+  "./sacre-coeur.jpg",
+  "./cathedrale-reims.jpg",
+  "./negresco.jpg",
+  "./tour-eiffel.jpg",
+  "./napoleon.jpg"
 ];
 
 self.addEventListener("install", e => {
