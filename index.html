@@ -253,6 +253,21 @@
     font-size:.82rem; text-transform:none; letter-spacing:0;
     color:#5a4324;
   }
+  #gamepadSection{
+    border-top:1px dashed #a98a4d;
+    margin-top:12px;
+    padding-top:10px;
+    text-align:center;
+  }
+  #gamepadPanel{ margin-top:8px; }
+  #gamepadPanel .field{ align-items:center; }
+  #gamepadPanel label{ font-size:.72rem; }
+  #gamepadDiagnostic{
+    font-size:.72rem; color:#5a4324;
+    min-height:2.4em;
+    background:#fffaf0; border:1px dashed #a98a4d; border-radius:4px;
+    padding:6px; margin:4px 0 8px;
+  }
   #appRoot{
     display:flex;
     flex-direction:column;
@@ -344,6 +359,10 @@
       <label for="profileSelect">Profil (Nom du joueur)</label>
       <select id="profileSelect" onchange="onProfileSelectChange()"></select>
     </div>
+    <div class="field">
+      <label for="inputSingle">Commande</label>
+      <select id="inputSingle" onchange="this.dataset.chosen='1'"></select>
+    </div>
   </div>
   <div class="row hidden" id="newProfileRow">
     <div class="field">
@@ -358,6 +377,30 @@
       <input type="checkbox" id="riskMode">
       Mode Risque — une défaite retire des points au monument en construction
     </label>
+  </div>
+
+  <div id="gamepadSection">
+    <button class="ghost" onclick="toggleGamepadPanel()">🎮 Réglages manette</button>
+    <div id="gamepadPanel" class="hidden">
+      <p style="font-size:.75rem;color:#5a4324;margin:8px 0 4px;">Bougez un stick ou appuyez sur des boutons pour voir leurs index ci-dessous — utile pour identifier les bons numéros sur une manette inhabituelle.</p>
+      <p id="gamepadDiagnostic">(aucune manette détectée)</p>
+      <div class="row" style="justify-content:center;">
+        <div class="field">
+          <label for="gpAxis">Axe vertical</label>
+          <input type="number" id="gpAxis" min="0" max="7" style="width:60px;">
+        </div>
+        <div class="field">
+          <label for="gpPauseBtn">Bouton Pause</label>
+          <input type="number" id="gpPauseBtn" min="0" max="20" style="width:60px;">
+        </div>
+        <div class="field">
+          <label for="gpBackBtn">Bouton Retour</label>
+          <input type="number" id="gpBackBtn" min="0" max="20" style="width:60px;">
+        </div>
+      </div>
+      <button class="ghost" onclick="saveGamepadMapping()" style="margin-top:6px;">Enregistrer</button>
+      <p id="gamepadMapStatus" style="font-size:.72rem;color:#5a4324;margin-top:2px;"></p>
+    </div>
   </div>
 
   <div id="twoPlayerFields" class="hidden">
@@ -452,7 +495,7 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const W = canvas.width, H = canvas.height;
 const MAX_BG = 4;
-const GAME_VERSION = "1.5.0";
+const GAME_VERSION = "1.6.0";
 {
   const vt = document.getElementById("versionTag");
   if(vt) vt.textContent = "v" + GAME_VERSION;
@@ -462,6 +505,7 @@ let active = false, paused = false, sound = true;
 let mode = "single"; // "single" | "two"
 let leftName = "Joueur", rightName = "Adversaire";
 let inputLeftSource = "keyboard-ws", inputRightSource = "keyboard-arrows";
+let inputSingleSource = "auto";
 let touchTargetLeft = null, touchTargetRight = null;
 let connectedGamepads = [];
 let wakeLock = null;
@@ -845,6 +889,24 @@ function populateInputSelects(){
   if(selRight && !selRight.dataset.chosen){
     selRight.value = connectedGamepads.length ? ("gamepad-"+connectedGamepads[0].index) : "keyboard-arrows";
   }
+
+  const singleOptions = [{ value:"auto", label:"Souris / Tactile / Clavier" }];
+  connectedGamepads.forEach(gp=>{
+    singleOptions.push({ value:"gamepad-"+gp.index, label:"Manette : "+shortenGamepadName(gp.id) });
+  });
+  const selSingle = document.getElementById("inputSingle");
+  if(selSingle){
+    const prev = selSingle.value;
+    selSingle.innerHTML = "";
+    singleOptions.forEach(o=>{
+      const opt = document.createElement("option");
+      opt.value = o.value; opt.textContent = o.label;
+      selSingle.appendChild(opt);
+    });
+    const stillValid = Array.from(selSingle.options).some(o=>o.value===prev);
+    if(stillValid) selSingle.value = prev;
+    else if(!selSingle.dataset.chosen) selSingle.value = "auto";
+  }
 }
 window.addEventListener("gamepadconnected", ()=> populateInputSelects());
 window.addEventListener("gamepaddisconnected", ()=> populateInputSelects());
@@ -1151,6 +1213,7 @@ function startGame(){
     leftName = getActiveProfile() || "Joueur";
     rightName = "";
     riskMode = document.getElementById("riskMode").checked;
+    inputSingleSource = document.getElementById("inputSingle").value;
   } else {
     leftName = document.getElementById("nameLeft").value.trim() || "Gauche";
     rightName = document.getElementById("nameRight").value.trim() || "Droit";
@@ -1645,9 +1708,13 @@ function loop(){
   if(!active || paused) return;
 
   if(mode === "single"){
-    if(keys["ArrowUp"] || keys["w"] || keys["W"]) pY -= 8;
-    if(keys["ArrowDown"] || keys["s"] || keys["S"]) pY += 8;
-    if(touchTargetLeft !== null) pY += (touchTargetLeft - pY) * 0.35;
+    if(inputSingleSource && inputSingleSource.indexOf("gamepad-") === 0){
+      pY += getPaddleDelta(inputSingleSource);
+    } else {
+      if(keys["ArrowUp"] || keys["w"] || keys["W"]) pY -= 8;
+      if(keys["ArrowDown"] || keys["s"] || keys["S"]) pY += 8;
+      if(touchTargetLeft !== null) pY += (touchTargetLeft - pY) * 0.35;
+    }
     pY = clampY(pY);
   } else {
     if(inputLeftSource === "touch"){
@@ -1748,7 +1815,7 @@ function getPaddleDelta(source){
     const pads = navigator.getGamepads ? navigator.getGamepads() : [];
     const gp = pads[idx];
     if(!gp) return 0;
-    let axis = gp.axes[1] || 0;
+    let axis = gp.axes[gamepadMap.axis] || 0;
     if(Math.abs(axis) < 0.18) axis = 0;
     let d = axis * 11;
     if(gp.buttons[12] && gp.buttons[12].pressed) d -= 9;
@@ -1832,6 +1899,89 @@ const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 if(isIOS && !window.navigator.standalone){
   document.getElementById("iosHint").classList.remove("hidden");
 }
+
+/* ---------- Manette : mappage et actions globales (pause / retour) ---------- */
+function getGamepadMapping(){
+  try{
+    const raw = JSON.parse(localStorage.getItem("pong_fr_gamepad_map"));
+    if(raw && typeof raw === "object") return raw;
+  }catch(e){}
+  return { axis: 1, pauseBtn: 9, backBtn: 1 };
+}
+function saveGamepadMappingToStorage(map){
+  try{ localStorage.setItem("pong_fr_gamepad_map", JSON.stringify(map)); }catch(e){}
+}
+let gamepadMap = getGamepadMapping();
+
+function toggleGamepadPanel(){
+  const panel = document.getElementById("gamepadPanel");
+  panel.classList.toggle("hidden");
+  if(!panel.classList.contains("hidden")){
+    document.getElementById("gpAxis").value = gamepadMap.axis;
+    document.getElementById("gpPauseBtn").value = gamepadMap.pauseBtn;
+    document.getElementById("gpBackBtn").value = gamepadMap.backBtn;
+  }
+}
+function saveGamepadMapping(){
+  const axis = parseInt(document.getElementById("gpAxis").value, 10);
+  const pauseBtn = parseInt(document.getElementById("gpPauseBtn").value, 10);
+  const backBtn = parseInt(document.getElementById("gpBackBtn").value, 10);
+  gamepadMap = {
+    axis: isNaN(axis) ? 1 : axis,
+    pauseBtn: isNaN(pauseBtn) ? 9 : pauseBtn,
+    backBtn: isNaN(backBtn) ? 1 : backBtn
+  };
+  saveGamepadMappingToStorage(gamepadMap);
+  document.getElementById("gamepadMapStatus").textContent = "Enregistré.";
+}
+
+let gamepadButtonState = {};
+function checkGamepadButton(gp, gpIndex, buttonIndex, callback){
+  const btn = gp.buttons[buttonIndex];
+  if(!btn) return;
+  const key = gpIndex + "-" + buttonIndex;
+  const pressed = btn.pressed;
+  if(pressed && !gamepadButtonState[key]) callback();
+  gamepadButtonState[key] = pressed;
+}
+
+// Runs continuously from page load, independent of the game loop, so a
+// gamepad's Pause/Back buttons work even on the victory/defeat screen where
+// the main loop() has already stopped (active === false).
+function pollGlobalGamepadActions(){
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  const diagParts = [];
+
+  for(let i=0;i<pads.length;i++){
+    const gp = pads[i];
+    if(!gp) continue;
+
+    const pressedButtons = [];
+    gp.buttons.forEach((b,bi)=>{ if(b.pressed) pressedButtons.push(bi); });
+    const axesText = gp.axes.map((a,ai)=> Math.abs(a) > 0.2 ? `axe${ai}:${a.toFixed(2)}` : null).filter(Boolean).join(" ");
+    if(pressedButtons.length || axesText){
+      diagParts.push(`Manette #${i} — boutons:[${pressedButtons.join(",")}] ${axesText}`);
+    }
+
+    checkGamepadButton(gp, i, gamepadMap.pauseBtn, ()=>{
+      if(active) togglePause();
+    });
+    checkGamepadButton(gp, i, gamepadMap.backBtn, ()=>{
+      const canvasVisible = !document.getElementById("canvasWrap").classList.contains("hidden");
+      if(paused){ backToMenu(); }
+      else if(!active && canvasVisible){ backToMenu(); } // victory/defeat screen
+    });
+  }
+
+  const diagEl = document.getElementById("gamepadDiagnostic");
+  const panel = document.getElementById("gamepadPanel");
+  if(diagEl && panel && !panel.classList.contains("hidden")){
+    diagEl.textContent = diagParts.length ? diagParts.join(" | ") : "(aucune manette active — bougez un stick ou appuyez sur un bouton)";
+  }
+
+  requestAnimationFrame(pollGlobalGamepadActions);
+}
+requestAnimationFrame(pollGlobalGamepadActions);
 </script>
 </body>
 </html>
