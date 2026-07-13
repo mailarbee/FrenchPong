@@ -176,7 +176,7 @@
   .bgAddTile{
     display:flex; align-items:center; justify-content:center;
     font-size:1.3rem; color:#5a4324; background:#fffaf0;
-    border-style:dashed;
+    border-style:dashed; cursor:pointer;
   }
   .bgThumbDel{
     position:absolute; top:-7px; right:-7px;
@@ -382,24 +382,32 @@
   <div id="gamepadSection">
     <button class="ghost" onclick="toggleGamepadPanel()">🎮 Réglages manette</button>
     <div id="gamepadPanel" class="hidden">
-      <p style="font-size:.75rem;color:#5a4324;margin:8px 0 4px;">Bougez un stick ou appuyez sur des boutons pour voir leurs index ci-dessous — utile pour identifier les bons numéros sur une manette inhabituelle.</p>
+      <p style="font-size:.75rem;color:#5a4324;margin:8px 0 4px;">Cliquez sur « Définir » puis bougez le stick ou appuyez sur le bouton que vous voulez utiliser — pas besoin de connaître son numéro.</p>
       <p id="gamepadDiagnostic">(aucune manette détectée)</p>
-      <div class="row" style="justify-content:center;">
+      <div class="row" style="justify-content:center; align-items:center;">
         <div class="field">
-          <label for="gpAxis">Axe vertical</label>
-          <input type="number" id="gpAxis" min="0" max="7" style="width:60px;">
+          <label>Axe vertical</label>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <span id="gpAxisDisplay" style="font-size:.85rem;">1</span>
+            <button class="ghost" onclick="startGamepadCapture('axis')">🎯 Définir</button>
+          </div>
         </div>
         <div class="field">
-          <label for="gpPauseBtn">Bouton Pause</label>
-          <input type="number" id="gpPauseBtn" min="0" max="20" style="width:60px;">
+          <label>Bouton Pause</label>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <span id="gpPauseBtnDisplay" style="font-size:.85rem;">9</span>
+            <button class="ghost" onclick="startGamepadCapture('pauseBtn')">🎯 Définir</button>
+          </div>
         </div>
         <div class="field">
-          <label for="gpBackBtn">Bouton Retour</label>
-          <input type="number" id="gpBackBtn" min="0" max="20" style="width:60px;">
+          <label>Bouton Retour</label>
+          <div style="display:flex; gap:6px; align-items:center;">
+            <span id="gpBackBtnDisplay" style="font-size:.85rem;">1</span>
+            <button class="ghost" onclick="startGamepadCapture('backBtn')">🎯 Définir</button>
+          </div>
         </div>
       </div>
-      <button class="ghost" onclick="saveGamepadMapping()" style="margin-top:6px;">Enregistrer</button>
-      <p id="gamepadMapStatus" style="font-size:.72rem;color:#5a4324;margin-top:2px;"></p>
+      <p id="gamepadCaptureStatus" style="font-size:.75rem;color:#5a4324;margin-top:8px; min-height:1.2em;"></p>
     </div>
   </div>
 
@@ -495,7 +503,7 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const W = canvas.width, H = canvas.height;
 const MAX_BG = 4;
-const GAME_VERSION = "1.6.0";
+const GAME_VERSION = "1.6.1";
 {
   const vt = document.getElementById("versionTag");
   if(vt) vt.textContent = "v" + GAME_VERSION;
@@ -1084,11 +1092,11 @@ function renderGallery(){
   });
 
   if(gallery.length < MAX_BG){
-    const addTile = document.createElement("div");
+    const addTile = document.createElement("label");
+    addTile.setAttribute("for", "bgFile");
     addTile.className = "bgThumb bgAddTile";
     addTile.textContent = "+";
     addTile.title = "Ajouter une image";
-    addTile.onclick = ()=> document.getElementById("bgFile").click();
     box.appendChild(addTile);
   }
 }
@@ -1912,27 +1920,35 @@ function saveGamepadMappingToStorage(map){
   try{ localStorage.setItem("pong_fr_gamepad_map", JSON.stringify(map)); }catch(e){}
 }
 let gamepadMap = getGamepadMapping();
+let gamepadCaptureTarget = null; // "axis" | "pauseBtn" | "backBtn" | null
 
 function toggleGamepadPanel(){
   const panel = document.getElementById("gamepadPanel");
   panel.classList.toggle("hidden");
   if(!panel.classList.contains("hidden")){
-    document.getElementById("gpAxis").value = gamepadMap.axis;
-    document.getElementById("gpPauseBtn").value = gamepadMap.pauseBtn;
-    document.getElementById("gpBackBtn").value = gamepadMap.backBtn;
+    updateGamepadMapDisplay();
+  } else {
+    gamepadCaptureTarget = null;
   }
 }
-function saveGamepadMapping(){
-  const axis = parseInt(document.getElementById("gpAxis").value, 10);
-  const pauseBtn = parseInt(document.getElementById("gpPauseBtn").value, 10);
-  const backBtn = parseInt(document.getElementById("gpBackBtn").value, 10);
-  gamepadMap = {
-    axis: isNaN(axis) ? 1 : axis,
-    pauseBtn: isNaN(pauseBtn) ? 9 : pauseBtn,
-    backBtn: isNaN(backBtn) ? 1 : backBtn
+function updateGamepadMapDisplay(){
+  const axisEl = document.getElementById("gpAxisDisplay");
+  const pauseEl = document.getElementById("gpPauseBtnDisplay");
+  const backEl = document.getElementById("gpBackBtnDisplay");
+  if(axisEl) axisEl.textContent = gamepadMap.axis;
+  if(pauseEl) pauseEl.textContent = gamepadMap.pauseBtn;
+  if(backEl) backEl.textContent = gamepadMap.backBtn;
+}
+function startGamepadCapture(target){
+  gamepadCaptureTarget = target;
+  const messages = {
+    axis: "Bougez le stick que vous voulez utiliser pour déplacer la raquette…",
+    pauseBtn: "Appuyez sur le bouton que vous voulez utiliser pour la pause…",
+    backBtn: "Appuyez sur le bouton que vous voulez utiliser pour revenir au menu…"
   };
-  saveGamepadMappingToStorage(gamepadMap);
-  document.getElementById("gamepadMapStatus").textContent = "Enregistré.";
+  const statusEl = document.getElementById("gamepadCaptureStatus");
+  statusEl.textContent = messages[target] || "";
+  statusEl.style.color = "#5a4324";
 }
 
 let gamepadButtonState = {};
@@ -1947,7 +1963,8 @@ function checkGamepadButton(gp, gpIndex, buttonIndex, callback){
 
 // Runs continuously from page load, independent of the game loop, so a
 // gamepad's Pause/Back buttons work even on the victory/defeat screen where
-// the main loop() has already stopped (active === false).
+// the main loop() has already stopped (active === false), and so button/axis
+// capture works from the settings panel regardless of game state.
 function pollGlobalGamepadActions(){
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
   const diagParts = [];
@@ -1963,14 +1980,45 @@ function pollGlobalGamepadActions(){
       diagParts.push(`Manette #${i} — boutons:[${pressedButtons.join(",")}] ${axesText}`);
     }
 
-    checkGamepadButton(gp, i, gamepadMap.pauseBtn, ()=>{
-      if(active) togglePause();
-    });
-    checkGamepadButton(gp, i, gamepadMap.backBtn, ()=>{
-      const canvasVisible = !document.getElementById("canvasWrap").classList.contains("hidden");
-      if(paused){ backToMenu(); }
-      else if(!active && canvasVisible){ backToMenu(); } // victory/defeat screen
-    });
+    if(gamepadCaptureTarget === "axis"){
+      for(let ai=0; ai<gp.axes.length; ai++){
+        if(Math.abs(gp.axes[ai]) > 0.6){
+          gamepadMap.axis = ai;
+          saveGamepadMappingToStorage(gamepadMap);
+          updateGamepadMapDisplay();
+          const statusEl = document.getElementById("gamepadCaptureStatus");
+          statusEl.textContent = `Axe ${ai} enregistré !`;
+          statusEl.style.color = "#8a6d1a";
+          gamepadCaptureTarget = null;
+          break;
+        }
+      }
+    } else if(gamepadCaptureTarget === "pauseBtn" || gamepadCaptureTarget === "backBtn"){
+      for(let bi=0; bi<gp.buttons.length; bi++){
+        const btn = gp.buttons[bi];
+        const key = "capture-" + i + "-" + bi;
+        const wasPressed = gamepadButtonState[key] || false;
+        if(btn.pressed && !wasPressed){
+          gamepadMap[gamepadCaptureTarget] = bi;
+          saveGamepadMappingToStorage(gamepadMap);
+          updateGamepadMapDisplay();
+          const statusEl = document.getElementById("gamepadCaptureStatus");
+          statusEl.textContent = `Bouton ${bi} enregistré !`;
+          statusEl.style.color = "#8a6d1a";
+          gamepadCaptureTarget = null;
+        }
+        gamepadButtonState[key] = btn.pressed;
+      }
+    } else {
+      checkGamepadButton(gp, i, gamepadMap.pauseBtn, ()=>{
+        if(active) togglePause();
+      });
+      checkGamepadButton(gp, i, gamepadMap.backBtn, ()=>{
+        const canvasVisible = !document.getElementById("canvasWrap").classList.contains("hidden");
+        if(paused){ backToMenu(); }
+        else if(!active && canvasVisible){ backToMenu(); } // victory/defeat screen
+      });
+    }
   }
 
   const diagEl = document.getElementById("gamepadDiagnostic");
