@@ -503,7 +503,7 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const W = canvas.width, H = canvas.height;
 const MAX_BG = 4;
-const GAME_VERSION = "1.6.1";
+const GAME_VERSION = "1.6.2";
 {
   const vt = document.getElementById("versionTag");
   if(vt) vt.textContent = "v" + GAME_VERSION;
@@ -1824,6 +1824,7 @@ function getPaddleDelta(source){
     const gp = pads[idx];
     if(!gp) return 0;
     let axis = gp.axes[gamepadMap.axis] || 0;
+    axis = Math.max(-1, Math.min(1, axis));
     if(Math.abs(axis) < 0.18) axis = 0;
     let d = axis * 11;
     if(gp.buttons[12] && gp.buttons[12].pressed) d -= 9;
@@ -1939,8 +1940,17 @@ function updateGamepadMapDisplay(){
   if(pauseEl) pauseEl.textContent = gamepadMap.pauseBtn;
   if(backEl) backEl.textContent = gamepadMap.backBtn;
 }
+let gamepadAxisBaseline = {};
+
 function startGamepadCapture(target){
   gamepadCaptureTarget = target;
+  if(target === "axis"){
+    gamepadAxisBaseline = {};
+    const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+    for(let i=0;i<pads.length;i++){
+      if(pads[i]) gamepadAxisBaseline[i] = pads[i].axes.slice();
+    }
+  }
   const messages = {
     axis: "Bougez le stick que vous voulez utiliser pour déplacer la raquette…",
     pauseBtn: "Appuyez sur le bouton que vous voulez utiliser pour la pause…",
@@ -1969,6 +1979,38 @@ function pollGlobalGamepadActions(){
   const pads = navigator.getGamepads ? navigator.getGamepads() : [];
   const diagParts = [];
 
+  // Axis capture is resolved across ALL gamepads/axes at once, picking whichever
+  // axis moved furthest from its own resting value recorded when capture started —
+  // not just whichever axis first exceeds a fixed threshold (some controllers,
+  // notably Bluetooth "Switch Pro"-style ones, report resting triggers at -1,
+  // which would otherwise be mistaken for the stick being held down).
+  if(gamepadCaptureTarget === "axis"){
+    let bestDelta = 0.5;
+    let bestAxis = null;
+    for(let i=0;i<pads.length;i++){
+      const gp = pads[i];
+      if(!gp) continue;
+      const baseline = gamepadAxisBaseline[i] || [];
+      for(let ai=0; ai<gp.axes.length; ai++){
+        const base = baseline[ai] !== undefined ? baseline[ai] : 0;
+        const delta = Math.abs(gp.axes[ai] - base);
+        if(delta > bestDelta){
+          bestDelta = delta;
+          bestAxis = ai;
+        }
+      }
+    }
+    if(bestAxis !== null){
+      gamepadMap.axis = bestAxis;
+      saveGamepadMappingToStorage(gamepadMap);
+      updateGamepadMapDisplay();
+      const statusEl = document.getElementById("gamepadCaptureStatus");
+      statusEl.textContent = `Axe ${bestAxis} enregistré !`;
+      statusEl.style.color = "#8a6d1a";
+      gamepadCaptureTarget = null;
+    }
+  }
+
   for(let i=0;i<pads.length;i++){
     const gp = pads[i];
     if(!gp) continue;
@@ -1977,23 +2019,10 @@ function pollGlobalGamepadActions(){
     gp.buttons.forEach((b,bi)=>{ if(b.pressed) pressedButtons.push(bi); });
     const axesText = gp.axes.map((a,ai)=> Math.abs(a) > 0.2 ? `axe${ai}:${a.toFixed(2)}` : null).filter(Boolean).join(" ");
     if(pressedButtons.length || axesText){
-      diagParts.push(`Manette #${i} — boutons:[${pressedButtons.join(",")}] ${axesText}`);
+      diagParts.push(`Manette #${i} (${gp.mapping || "non standard"}) — boutons:[${pressedButtons.join(",")}] ${axesText}`);
     }
 
-    if(gamepadCaptureTarget === "axis"){
-      for(let ai=0; ai<gp.axes.length; ai++){
-        if(Math.abs(gp.axes[ai]) > 0.6){
-          gamepadMap.axis = ai;
-          saveGamepadMappingToStorage(gamepadMap);
-          updateGamepadMapDisplay();
-          const statusEl = document.getElementById("gamepadCaptureStatus");
-          statusEl.textContent = `Axe ${ai} enregistré !`;
-          statusEl.style.color = "#8a6d1a";
-          gamepadCaptureTarget = null;
-          break;
-        }
-      }
-    } else if(gamepadCaptureTarget === "pauseBtn" || gamepadCaptureTarget === "backBtn"){
+    if(gamepadCaptureTarget === "pauseBtn" || gamepadCaptureTarget === "backBtn"){
       for(let bi=0; bi<gp.buttons.length; bi++){
         const btn = gp.buttons[bi];
         const key = "capture-" + i + "-" + bi;
@@ -2009,7 +2038,7 @@ function pollGlobalGamepadActions(){
         }
         gamepadButtonState[key] = btn.pressed;
       }
-    } else {
+    } else if(gamepadCaptureTarget !== "axis"){
       checkGamepadButton(gp, i, gamepadMap.pauseBtn, ()=>{
         if(active) togglePause();
       });
