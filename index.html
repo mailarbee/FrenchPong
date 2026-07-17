@@ -268,6 +268,17 @@
     background:#fffaf0; border:1px dashed #a98a4d; border-radius:4px;
     padding:6px; margin:4px 0 8px;
   }
+  #gpAxisTestBar{
+    width:90px; height:10px;
+    background:#e4d7b8; border:1px solid #a98a4d; border-radius:5px;
+    margin-top:5px; position:relative; overflow:hidden;
+  }
+  #gpAxisTestFill{
+    position:absolute; top:0; bottom:0; left:50%;
+    width:5px; margin-left:-2.5px;
+    background:var(--rouge); border-radius:2px;
+  }
+  #gpProfileSelect{ font-size:.85rem; }
   #appRoot{
     display:flex;
     flex-direction:column;
@@ -384,12 +395,15 @@
     <div id="gamepadPanel" class="hidden">
       <p style="font-size:.75rem;color:#5a4324;margin:8px 0 4px;">Cliquez sur « Définir » puis bougez le stick ou appuyez sur le bouton que vous voulez utiliser — pas besoin de connaître son numéro.</p>
       <p id="gamepadDiagnostic">(aucune manette détectée)</p>
-      <div class="row" style="justify-content:center; align-items:center;">
+      <div class="row" style="justify-content:center; align-items:flex-start;">
         <div class="field">
           <label>Axe vertical</label>
           <div style="display:flex; gap:6px; align-items:center;">
             <span id="gpAxisDisplay" style="font-size:.85rem;">1</span>
             <button class="ghost" onclick="startGamepadCapture('axis')">🎯 Définir</button>
+          </div>
+          <div id="gpAxisTestBar" title="Bougez le stick pour tester">
+            <div id="gpAxisTestFill"></div>
           </div>
         </div>
         <div class="field">
@@ -408,6 +422,18 @@
         </div>
       </div>
       <p id="gamepadCaptureStatus" style="font-size:.75rem;color:#5a4324;margin-top:8px; min-height:1.2em;"></p>
+
+      <div class="row" style="justify-content:center; margin-top:6px;">
+        <div class="field">
+          <label for="gpProfileSelect">Profil manette enregistré</label>
+          <select id="gpProfileSelect" onchange="loadGamepadProfile()"></select>
+        </div>
+      </div>
+      <div class="row" style="justify-content:center; margin-top:4px;">
+        <button class="ghost" onclick="saveGamepadProfile()">💾 Enregistrer sous…</button>
+        <button class="ghost" onclick="deleteGamepadProfile()">🗑️ Supprimer</button>
+        <button class="ghost" onclick="resetGamepadMapping()">↺ Réinitialiser</button>
+      </div>
     </div>
   </div>
 
@@ -503,7 +529,7 @@ const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 const W = canvas.width, H = canvas.height;
 const MAX_BG = 4;
-const GAME_VERSION = "1.6.2";
+const GAME_VERSION = "1.7.0";
 {
   const vt = document.getElementById("versionTag");
   if(vt) vt.textContent = "v" + GAME_VERSION;
@@ -1928,9 +1954,95 @@ function toggleGamepadPanel(){
   panel.classList.toggle("hidden");
   if(!panel.classList.contains("hidden")){
     updateGamepadMapDisplay();
+    renderGamepadProfileSelect();
   } else {
     gamepadCaptureTarget = null;
   }
+}
+
+function resetGamepadMapping(){
+  gamepadMap = { axis: 1, pauseBtn: 9, backBtn: 1 };
+  saveGamepadMappingToStorage(gamepadMap);
+  updateGamepadMapDisplay();
+  const statusEl = document.getElementById("gamepadCaptureStatus");
+  statusEl.textContent = "Réglages réinitialisés aux valeurs par défaut.";
+  statusEl.style.color = "#5a4324";
+}
+
+/* ---------- Profils de manette enregistrés (pour changer facilement entre plusieurs manettes) ---------- */
+function getGamepadProfiles(){
+  try{
+    const raw = JSON.parse(localStorage.getItem("pong_fr_gamepad_profiles"));
+    if(raw && typeof raw === "object") return raw;
+  }catch(e){}
+  return {};
+}
+function saveGamepadProfilesToStorage(profiles){
+  try{ localStorage.setItem("pong_fr_gamepad_profiles", JSON.stringify(profiles)); }catch(e){}
+}
+function renderGamepadProfileSelect(){
+  const sel = document.getElementById("gpProfileSelect");
+  if(!sel) return;
+  const profiles = getGamepadProfiles();
+  const activeName = localStorage.getItem("pong_fr_gamepad_active_profile") || "";
+  sel.innerHTML = "";
+  const noneOpt = document.createElement("option");
+  noneOpt.value = ""; noneOpt.textContent = "(réglages actuels, sans nom)";
+  sel.appendChild(noneOpt);
+  Object.keys(profiles).sort((a,b)=>a.localeCompare(b)).forEach(name=>{
+    const opt = document.createElement("option");
+    opt.value = name; opt.textContent = name;
+    sel.appendChild(opt);
+  });
+  sel.value = profiles[activeName] ? activeName : "";
+}
+function saveGamepadProfile(){
+  const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+  let suggested = "Ma manette";
+  for(let i=0;i<pads.length;i++){
+    if(pads[i]){ suggested = pads[i].id.slice(0, 28); break; }
+  }
+  const name = window.prompt("Nom pour ce profil de manette :", suggested);
+  if(!name) return;
+  const profiles = getGamepadProfiles();
+  profiles[name] = { ...gamepadMap };
+  saveGamepadProfilesToStorage(profiles);
+  localStorage.setItem("pong_fr_gamepad_active_profile", name);
+  renderGamepadProfileSelect();
+  const statusEl = document.getElementById("gamepadCaptureStatus");
+  statusEl.textContent = `Profil « ${name} » enregistré.`;
+  statusEl.style.color = "#8a6d1a";
+}
+function loadGamepadProfile(){
+  const sel = document.getElementById("gpProfileSelect");
+  const name = sel.value;
+  const statusEl = document.getElementById("gamepadCaptureStatus");
+  if(!name){
+    localStorage.removeItem("pong_fr_gamepad_active_profile");
+    return;
+  }
+  const profiles = getGamepadProfiles();
+  if(profiles[name]){
+    gamepadMap = { ...profiles[name] };
+    saveGamepadMappingToStorage(gamepadMap);
+    localStorage.setItem("pong_fr_gamepad_active_profile", name);
+    updateGamepadMapDisplay();
+    statusEl.textContent = `Profil « ${name} » chargé.`;
+    statusEl.style.color = "#8a6d1a";
+  }
+}
+function deleteGamepadProfile(){
+  const sel = document.getElementById("gpProfileSelect");
+  const name = sel.value;
+  if(!name) return;
+  const profiles = getGamepadProfiles();
+  delete profiles[name];
+  saveGamepadProfilesToStorage(profiles);
+  localStorage.removeItem("pong_fr_gamepad_active_profile");
+  renderGamepadProfileSelect();
+  const statusEl = document.getElementById("gamepadCaptureStatus");
+  statusEl.textContent = `Profil « ${name} » supprimé.`;
+  statusEl.style.color = "#5a4324";
 }
 function updateGamepadMapDisplay(){
   const axisEl = document.getElementById("gpAxisDisplay");
@@ -2054,6 +2166,16 @@ function pollGlobalGamepadActions(){
   const panel = document.getElementById("gamepadPanel");
   if(diagEl && panel && !panel.classList.contains("hidden")){
     diagEl.textContent = diagParts.length ? diagParts.join(" | ") : "(aucune manette active — bougez un stick ou appuyez sur un bouton)";
+
+    const fill = document.getElementById("gpAxisTestFill");
+    if(fill){
+      let val = 0;
+      for(let i=0;i<pads.length;i++){
+        if(pads[i]){ val = pads[i].axes[gamepadMap.axis] || 0; break; }
+      }
+      val = Math.max(-1, Math.min(1, val));
+      fill.style.left = (((val + 1) / 2) * 100) + "%";
+    }
   }
 
   requestAnimationFrame(pollGlobalGamepadActions);
